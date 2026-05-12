@@ -29,12 +29,19 @@
       "type": "document",
       "files": ["AGENT_PROTOCOL.md"],
       "description": "Instructions agents follow to produce system deltas and maintain topology"
+    },
+    {
+      "id": "CIWorkflow",
+      "type": "ci",
+      "files": [".github/workflows/differ-review.yml"],
+      "description": "GitHub Actions workflow that generates review.html on PRs and posts artifact link as comment"
     }
   ],
   "edges": [
     { "from": "CLI", "to": "Renderer", "type": "calls", "description": "review command invokes renderReview()" },
     { "from": "CLI", "to": "Init", "type": "calls", "description": "init command invokes initTopology()" },
     { "from": "Renderer", "to": "Types", "type": "depends", "description": "imports Topology and SystemDelta types" },
-    { "from": "Init", "to": "Types", "type": "depends", "description": "imports Topology and TopologyNode types" }
+    { "from": "Init", "to": "Types", "type": "depends", "description": "imports Topology and TopologyNode types" },
+    { "from": "CIWorkflow", "to": "CLI", "type": "calls", "description": "runs differ review in CI" }
   ]
 }
