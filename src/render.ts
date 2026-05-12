@@ -144,8 +144,9 @@ header h1 { font-size: 15px; font-weight: 600; color: var(--text-secondary); let
 .graph-layout { display: flex; flex: 1; overflow: hidden; }
 .graph-area { flex: 1; position: relative; }
 #graph { width: 100%; height: 100%; }
-.detail-panel { width: 360px; border-left: 1px solid var(--border); overflow-y: auto; padding: 16px; }
+.detail-panel { width: 360px; border-left: 1px solid var(--border); overflow-y: auto; padding: 16px; position: relative; transition: width 0.2s; }
 .detail-panel.expanded { width: 55vw; }
+.detail-panel.expanded .code-diff { max-height: none; }
 .panel-placeholder { color: var(--text-tertiary); font-style: italic; text-align: center; padding: 40px 0; }
 
 .node { cursor: pointer; }
@@ -164,7 +165,8 @@ header h1 { font-size: 15px; font-weight: 600; color: var(--text-secondary); let
 .edge { stroke: var(--border); stroke-width: 1; fill: none; marker-end: url(#arr); }
 .edge.added { stroke: var(--accent-green); stroke-width: 1.5; }
 .edge.removed { stroke: var(--accent-red); stroke-dasharray: 4; }
-.elabel { font-size: 8px; fill: var(--text-tertiary); text-anchor: middle; }
+.elabel { font-size: 8px; fill: var(--text-tertiary); text-anchor: middle; opacity: 0; transition: opacity 0.15s; }
+.edge-group:hover .elabel { opacity: 1; }
 `;
 
 const SCRIPT = `
@@ -375,7 +377,8 @@ const SCRIPT = `
     const tn=topology.nodes.find(n=>n.id===id);
     const nd=nodeDiffs.find(d=>d.nodeId===id);
     const st=getStatus(id);
-    let h='<h3 style="margin-bottom:4px">'+esc(id)+'</h3>';
+    let h='<button data-action="toggle-expand" style="position:absolute;top:8px;right:8px;background:var(--surface);border:1px solid var(--border);color:var(--text-tertiary);width:24px;height:24px;border-radius:4px;cursor:pointer;font-size:12px">&harr;</button>';
+    h+='<h3 style="margin-bottom:4px">'+esc(id)+'</h3>';
     h+='<span class="node-badge '+st+'" style="margin-bottom:8px;display:inline-block">'+st+'</span>';
     if(tn)h+='<p style="color:var(--text-secondary);font-size:12px;margin-top:8px">'+esc(tn.description)+'</p>';
     if(ci){h+='<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)"><h4 style="font-size:11px;color:var(--text-tertiary);margin-bottom:4px">CHANGE</h4><p style="font-size:13px">'+esc(ci.summary)+'</p></div>';}
@@ -400,6 +403,13 @@ const SCRIPT = `
     if(activeFilters.has(s)){activeFilters.delete(s);b.classList.remove("active");}
     else{activeFilters.add(s);b.classList.add("active");}
     applyFilters();
+  });
+
+  // Panel expand
+  document.getElementById("panel")?.addEventListener("click",function(e){
+    if(e.target.closest("[data-action=toggle-expand]")){
+      document.getElementById("panel").classList.toggle("expanded");
+    }
   });
 })();
 `;
