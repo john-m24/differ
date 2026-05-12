@@ -1,0 +1,40 @@
+{
+  "nodes": [
+    {
+      "id": "CLI",
+      "type": "module",
+      "files": ["src/cli.ts"],
+      "description": "Command-line interface — parses arguments and dispatches to commands"
+    },
+    {
+      "id": "Renderer",
+      "type": "module",
+      "files": ["src/render.ts"],
+      "description": "Generates self-contained interactive HTML from topology + delta data"
+    },
+    {
+      "id": "Types",
+      "type": "module",
+      "files": ["src/types.ts"],
+      "description": "TypeScript type definitions for topology and system delta schemas"
+    },
+    {
+      "id": "Init",
+      "type": "module",
+      "files": ["src/init.ts"],
+      "description": "Detects repo structure and scaffolds a topology.json"
+    },
+    {
+      "id": "AgentProtocol",
+      "type": "document",
+      "files": ["AGENT_PROTOCOL.md"],
+      "description": "Instructions agents follow to produce system deltas and maintain topology"
+    }
+  ],
+  "edges": [
+    { "from": "CLI", "to": "Renderer", "type": "calls", "description": "review command invokes renderReview()" },
+    { "from": "CLI", "to": "Init", "type": "calls", "description": "init command invokes initTopology()" },
+    { "from": "Renderer", "to": "Types", "type": "depends", "description": "imports Topology and SystemDelta types" },
+    { "from": "Init", "to": "Types", "type": "depends", "description": "imports Topology and TopologyNode types" }
+  ]
+}

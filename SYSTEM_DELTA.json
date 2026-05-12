@@ -1,0 +1,39 @@
+{
+  "intent": "Build a validation prototype of differ — a systems-level code review tool that renders topology-first interactive HTML reviews",
+  "intent_satisfied": true,
+  "changed": [],
+  "added": ["CLI", "Renderer", "Types", "Init", "AgentProtocol"],
+  "removed": [],
+  "moved": [],
+  "edges_added": [
+    { "from": "CLI", "to": "Renderer", "type": "calls" },
+    { "from": "CLI", "to": "Init", "type": "calls" },
+    { "from": "Renderer", "to": "Types", "type": "depends" },
+    { "from": "Init", "to": "Types", "type": "depends" }
+  ],
+  "edges_removed": [],
+  "blast_radius": [],
+  "scope_violations": [],
+  "decision_trace": [
+    {
+      "decision": "Self-contained HTML output with inline force-directed graph simulation",
+      "alternatives": ["Use D3.js from CDN", "Use a canvas-based renderer", "Server-side rendering"],
+      "rationale": "Zero external dependencies means the review.html works offline, loads instantly, and can be shared as a single file"
+    },
+    {
+      "decision": "Rounded rectangles instead of circles for nodes",
+      "alternatives": ["Circles with truncated labels", "Circles with tooltips on hover"],
+      "rationale": "Full node labels are essential for readability — the topology diagram must be glanceable without interaction"
+    },
+    {
+      "decision": "Agent self-reports the delta rather than inferring from static analysis",
+      "alternatives": ["Tree-sitter AST diffing", "Call graph extraction from imports"],
+      "rationale": "Dramatically simpler to build, validates the core UX hypothesis without investing in analysis infrastructure"
+    },
+    {
+      "decision": "Topology file is checked into the repo and agent-maintained",
+      "alternatives": ["Infer topology from accumulated delta history", "No baseline — agent declares full topology each time"],
+      "rationale": "Simple source of truth with no cold-start problem; stays fresh because agents update it as part of their workflow"
+    }
+  ]
+}
