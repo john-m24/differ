@@ -1,0 +1,42 @@
+{
+  "nodes": [
+    {
+      "id": "ApiGateway",
+      "type": "service",
+      "files": ["src/gateway/**"],
+      "description": "HTTP entry point, routes requests and enforces schema validation"
+    },
+    {
+      "id": "AuthService",
+      "type": "service",
+      "files": ["src/auth/**"],
+      "description": "Handles authentication and session management"
+    },
+    {
+      "id": "OrderService",
+      "type": "service",
+      "files": ["src/orders/**"],
+      "description": "Processes and manages customer orders"
+    },
+    {
+      "id": "PaymentService",
+      "type": "service",
+      "files": ["src/payments/**"],
+      "description": "Handles payment processing and billing"
+    },
+    {
+      "id": "NotificationService",
+      "type": "service",
+      "files": ["src/notifications/**"],
+      "description": "Sends emails, push notifications, and SMS"
+    }
+  ],
+  "edges": [
+    { "from": "ApiGateway", "to": "AuthService", "type": "calls", "description": "JWT validation on every request" },
+    { "from": "ApiGateway", "to": "OrderService", "type": "calls", "description": "REST /api/orders/*" },
+    { "from": "ApiGateway", "to": "PaymentService", "type": "calls", "description": "REST /api/payments/*" },
+    { "from": "OrderService", "to": "PaymentService", "type": "calls", "description": "charge on order confirmation" },
+    { "from": "OrderService", "to": "NotificationService", "type": "emits", "description": "order.confirmed event" },
+    { "from": "PaymentService", "to": "NotificationService", "type": "emits", "description": "payment.processed event" }
+  ]
+}

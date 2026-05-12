@@ -1,0 +1,43 @@
+{
+  "intent": "Move schema validation from a standalone ValidationService into the ApiGateway middleware layer",
+  "intent_satisfied": true,
+  "changed": [
+    {
+      "id": "ApiGateway",
+      "summary": "Now handles request schema validation inline via middleware",
+      "before": "Only routed requests to downstream services",
+      "structural_changes": [
+        "added: validateSchema()",
+        "added: SchemaRegistry class",
+        "modified: handleRequest() — now calls validateSchema before routing"
+      ]
+    }
+  ],
+  "added": [],
+  "removed": ["ValidationService"],
+  "moved": [
+    {
+      "what": "schema validation logic",
+      "from": "ValidationService",
+      "to": "ApiGateway"
+    }
+  ],
+  "edges_added": [],
+  "edges_removed": [
+    { "from": "ApiGateway", "to": "ValidationService", "type": "calls" }
+  ],
+  "blast_radius": ["OrderService", "AuthService"],
+  "scope_violations": [],
+  "decision_trace": [
+    {
+      "decision": "Inline validation into gateway middleware",
+      "alternatives": ["Keep as separate service", "Move to each downstream service"],
+      "rationale": "Removes a network hop, enforces a single contract at the system boundary, reduces deployment surface"
+    },
+    {
+      "decision": "Use a SchemaRegistry class rather than inline schemas",
+      "alternatives": ["Hardcode schemas per route", "Load from external config service"],
+      "rationale": "Keeps schemas co-located with the gateway but decoupled from route handlers, allows future extraction if needed"
+    }
+  ]
+}
