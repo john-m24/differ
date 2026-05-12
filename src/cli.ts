@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { renderReview } from "./render.js";
 import { initTopology } from "./init.js";
 import { captureDiff, mapDiffsToNodes } from "./diff.js";
+import { startServer } from "./server.js";
 import type { Topology, SystemDelta } from "./types.js";
 
 program
@@ -40,6 +41,22 @@ program
     writeFileSync(outputPath, html);
 
     console.log(`Review written to ${outputPath}`);
+  });
+
+program
+  .command("serve")
+  .description("Start a local server with live topology editing via chat")
+  .option("-t, --topology <path>", "path to topology.json", "topology.json")
+  .option("-d, --delta <path>", "path to SYSTEM_DELTA.json", "SYSTEM_DELTA.json")
+  .option("-b, --base <ref>", "git base ref for diff", "origin/main")
+  .option("-p, --port <port>", "port to serve on", "3141")
+  .action((opts) => {
+    startServer({
+      topologyPath: resolve(opts.topology),
+      deltaPath: resolve(opts.delta),
+      base: opts.base,
+      port: parseInt(opts.port),
+    });
   });
 
 program

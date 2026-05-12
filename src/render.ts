@@ -31,6 +31,13 @@ ${CSS}
       ${delta.intent_satisfied ? "Intent satisfied" : "Intent NOT satisfied"}
     </span>
   </header>
+  <div class="filters" id="filters">
+    <label class="filter-toggle active" data-status="changed"><span class="filter-swatch changed"></span>Changed</label>
+    <label class="filter-toggle active" data-status="added"><span class="filter-swatch added"></span>Added</label>
+    <label class="filter-toggle active" data-status="removed"><span class="filter-swatch removed"></span>Removed</label>
+    <label class="filter-toggle active" data-status="blast-radius"><span class="filter-swatch blast-radius"></span>Blast radius</label>
+    <label class="filter-toggle active" data-status="unchanged"><span class="filter-swatch unchanged"></span>Unchanged</label>
+  </div>
   <div class="layout">
     <div class="graph-container">
       <svg id="graph"></svg>
@@ -90,6 +97,16 @@ header h1 { font-size: 18px; color: #f0f6fc; }
 .intent-badge.unsatisfied { background: #4a1e1e; color: #f85149; border: 1px solid #f85149; animation: pulse 2s infinite; }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
 
+.filters { padding: 8px 24px; border-bottom: 1px solid #21262d; display: flex; gap: 12px; align-items: center; }
+.filter-toggle { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #8b949e; cursor: pointer; padding: 3px 8px; border-radius: 12px; border: 1px solid #21262d; user-select: none; transition: opacity 0.15s; }
+.filter-toggle.active { color: #c9d1d9; border-color: #30363d; }
+.filter-toggle:not(.active) { opacity: 0.4; }
+.filter-swatch { width: 8px; height: 8px; border-radius: 2px; }
+.filter-swatch.changed { background: #d29922; }
+.filter-swatch.added { background: #6fdd8b; }
+.filter-swatch.removed { background: #f85149; }
+.filter-swatch.blast-radius { background: #6e40c9; }
+.filter-swatch.unchanged { background: #30363d; }
 .layout { display: flex; flex: 1; overflow: hidden; }
 .graph-container { flex: 1; position: relative; }
 #graph { width: 100%; height: 100%; }
@@ -326,6 +343,8 @@ const SCRIPT = `
     line.setAttribute("x2", pts.x2);
     line.setAttribute("y2", pts.y2);
     line.setAttribute("class", "edge " + e.status);
+    line.dataset.source = e.source;
+    line.dataset.target = e.target;
     g.appendChild(line);
 
     if (e.description) {
@@ -513,5 +532,37 @@ const SCRIPT = `
       if (diff) diff.classList.toggle("collapsed");
     }
   });
+
+  // Filter toggles
+  const activeFilters = new Set(["changed", "added", "removed", "blast-radius", "unchanged"]);
+  document.getElementById("filters").addEventListener("click", function(e) {
+    const toggle = e.target.closest(".filter-toggle");
+    if (!toggle) return;
+    const status = toggle.dataset.status;
+    if (activeFilters.has(status)) {
+      activeFilters.delete(status);
+      toggle.classList.remove("active");
+    } else {
+      activeFilters.add(status);
+      toggle.classList.add("active");
+    }
+    applyFilters();
+  });
+
+  function applyFilters() {
+    document.querySelectorAll(".node").forEach(function(g) {
+      const id = g.dataset.nodeId;
+      const status = getNodeStatus(id);
+      g.style.display = activeFilters.has(status) ? "" : "none";
+    });
+    document.querySelectorAll(".edge-group").forEach(function(g) {
+      const line = g.querySelector("line");
+      if (!line) return;
+      // Show edge if both source and target are visible
+      const sourceNode = document.querySelector('.node[data-node-id="' + line.dataset.source + '"]');
+      const targetNode = document.querySelector('.node[data-node-id="' + line.dataset.target + '"]');
+      g.style.display = (sourceNode && sourceNode.style.display !== "none" && targetNode && targetNode.style.display !== "none") ? "" : "none";
+    });
+  }
 })();
 `;

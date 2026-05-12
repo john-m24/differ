@@ -1,26 +1,46 @@
 {
-  "intent": "Make the review.html accessible directly from PRs via GitHub Actions artifact upload and PR comment",
+  "intent": "Add a local serve mode with a chat panel that lets authors edit topology via natural language, powered by Claude Code CLI",
   "intent_satisfied": true,
-  "changed": [],
-  "added": ["CIWorkflow"],
+  "changed": [
+    {
+      "id": "CLI",
+      "summary": "Now dispatches a `serve` command in addition to review and init",
+      "before": "Only had review and init commands",
+      "structural_changes": ["added: serve command handler", "added: import startServer"]
+    }
+  ],
+  "added": ["Server", "ChatAgent", "RenderServe"],
   "removed": [],
   "moved": [],
   "edges_added": [
-    { "from": "CIWorkflow", "to": "CLI", "type": "calls" }
+    { "from": "CLI", "to": "Server", "type": "calls" },
+    { "from": "Server", "to": "RenderServe", "type": "calls" },
+    { "from": "Server", "to": "ChatAgent", "type": "calls" },
+    { "from": "RenderServe", "to": "Renderer", "type": "depends" }
   ],
   "edges_removed": [],
-  "blast_radius": ["CLI"],
+  "blast_radius": ["Renderer"],
   "scope_violations": [],
   "decision_trace": [
     {
-      "decision": "Upload as workflow artifact + PR comment with link, rather than GitHub Pages deployment",
-      "alternatives": ["Deploy to GitHub Pages per-PR", "Inline the HTML as a PR comment", "Use a separate hosting service"],
-      "rationale": "Artifacts are ephemeral (no cleanup needed), require no repo settings changes, and work on private repos. Pages would need branch-per-PR management."
+      "decision": "Shell out to Claude Code CLI rather than calling Anthropic API directly",
+      "alternatives": ["Anthropic SDK with API key", "Generic LLM endpoint config", "Built-in rule engine for common edits"],
+      "rationale": "No API key configuration needed — uses whatever auth the user already has set up. Keeps differ AI-provider-agnostic at the boundary."
     },
     {
-      "decision": "Update existing comment rather than posting new ones on each push",
-      "alternatives": ["Post a new comment every run", "Only post on first run"],
-      "rationale": "Avoids comment spam on PRs with multiple pushes — always one Differ Review comment, always current."
+      "decision": "Preview + confirm workflow rather than immediate application",
+      "alternatives": ["Apply immediately with undo", "Apply immediately without undo"],
+      "rationale": "User explicitly requested safety — see the change before it lands. Prevents AI mistakes from silently corrupting topology."
+    },
+    {
+      "decision": "SSE for live reload rather than WebSocket",
+      "alternatives": ["WebSocket", "Polling", "Full page refresh on file watch"],
+      "rationale": "One-way push is all we need (server → client). SSE is simpler, no extra dependencies, works over standard HTTP."
+    },
+    {
+      "decision": "Separate render-serve.ts that wraps the base renderer",
+      "alternatives": ["Add chat UI directly to render.ts with a flag", "Completely separate HTML template"],
+      "rationale": "Keeps static review HTML unchanged (no chat panel leaking into CI artifacts). Serve mode extends it via string injection."
     }
   ]
 }
