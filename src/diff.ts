@@ -12,10 +12,15 @@ export interface NodeDiff {
 }
 
 export function captureDiff(base: string, cwd: string): FileHunk[] {
-  let raw: string;
+  let raw = "";
+  // Try committed changes first (three-dot: base...HEAD)
   try {
     raw = execSync(`git diff ${base}...HEAD`, { cwd, encoding: "utf-8", maxBuffer: 10 * 1024 * 1024 });
   } catch {
+    // ignore
+  }
+  // If no committed diff, try including working tree changes (two-dot: base)
+  if (!raw.trim()) {
     try {
       raw = execSync(`git diff ${base}`, { cwd, encoding: "utf-8", maxBuffer: 10 * 1024 * 1024 });
     } catch {
