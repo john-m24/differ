@@ -1,7 +1,10 @@
 import type { Topology, SystemDelta } from "./types.js";
+import type { NodeDiff } from "./diff.js";
 
-export function renderReview(topology: Topology, delta: SystemDelta): string {
-  const data = JSON.stringify({ topology, delta });
+export function renderReview(topology: Topology, delta: SystemDelta, nodeDiffs?: NodeDiff[]): string {
+  const data = JSON.stringify({ topology, delta, nodeDiffs: nodeDiffs || [] })
+    .replace(/<\//g, "<\\/")
+    .replace(/<!--/g, "<\\!--");
 
   const scopeWarning =
     delta.scope_violations.length > 0
@@ -102,6 +105,17 @@ header h1 { font-size: 18px; color: #f0f6fc; }
 .panel .structural li.added { color: #6fdd8b; }
 .panel .structural li.modified { color: #d29922; }
 .panel .structural li.removed { color: #f85149; }
+.panel .code-section { margin-top: 8px; }
+.panel .code-file { margin-bottom: 8px; }
+.panel .code-file-name { font-size: 11px; font-family: monospace; color: #8b949e; padding: 4px 8px; background: #161b22; border-radius: 4px 4px 0 0; border: 1px solid #21262d; border-bottom: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+.panel .code-file-name:hover { color: #c9d1d9; }
+.panel .code-file-name .toggle { font-size: 10px; color: #484f58; }
+.panel .code-diff { font-family: monospace; font-size: 11px; line-height: 1.5; padding: 8px; background: #0d1117; border: 1px solid #21262d; border-radius: 0 0 4px 4px; overflow-x: auto; white-space: pre; max-height: 300px; overflow-y: auto; }
+.panel .code-diff .line-add { color: #6fdd8b; background: #0d2818; display: block; }
+.panel .code-diff .line-del { color: #f85149; background: #2d0d0d; display: block; }
+.panel .code-diff .line-hunk { color: #6e40c9; display: block; margin-top: 4px; }
+.panel .code-diff .line-ctx { color: #8b949e; display: block; }
+.panel .code-diff.collapsed { display: none; }
 .trace { padding: 16px 24px; border-top: 1px solid #21262d; max-height: 200px; overflow-y: auto; }
 .trace h2 { font-size: 14px; color: #f0f6fc; margin-bottom: 12px; }
 .decision { margin-bottom: 12px; }
@@ -140,7 +154,7 @@ header h1 { font-size: 18px; color: #f0f6fc; }
 
 const SCRIPT = `
 (function() {
-  const { topology, delta } = DATA;
+  const { topology, delta, nodeDiffs } = DATA;
 
   const changedIds = new Set(delta.changed.map(c => c.id));
   const addedIds = new Set(delta.added);
@@ -463,7 +477,41 @@ const SCRIPT = `
       html += '</div>';
     }
 
+    // Code diff
+    const nodeDiff = nodeDiffs.find(nd => nd.nodeId === id);
+    if (nodeDiff && nodeDiff.files.length > 0) {
+      html += '<div class="panel-section code-section">';
+      html += '<h3>Code</h3>';
+      nodeDiff.files.forEach((f, idx) => {
+        html += '<div class="code-file">';
+        html += '<div class="code-file-name" data-toggle="diff"><span>' + escapeForHtml(f.file) + '</span><span class="toggle">collapse</span></div>';
+        html += '<div class="code-diff">';
+        const lines = f.hunks.split("\\n");
+        lines.forEach(line => {
+          if (line.startsWith("+")) html += '<span class="line-add">' + escapeForHtml(line) + '</span>';
+          else if (line.startsWith("-")) html += '<span class="line-del">' + escapeForHtml(line) + '</span>';
+          else if (line.startsWith("@@")) html += '<span class="line-hunk">' + escapeForHtml(line) + '</span>';
+          else html += '<span class="line-ctx">' + escapeForHtml(line) + '</span>';
+        });
+        html += '</div></div>';
+      });
+      html += '</div>';
+    }
+
     panel.innerHTML = html || '<div class="panel-empty">No details for this node</div>';
   }
+
+  function escapeForHtml(s) {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  // Event delegation for collapsible diffs
+  document.getElementById("panel").addEventListener("click", function(e) {
+    const toggle = e.target.closest("[data-toggle=diff]");
+    if (toggle) {
+      const diff = toggle.nextElementSibling;
+      if (diff) diff.classList.toggle("collapsed");
+    }
+  });
 })();
 `;

@@ -35,6 +35,17 @@ header h1 { font-size: 18px; color: #f0f6fc; }
 .panel .structural li.added { color: #6fdd8b; }
 .panel .structural li.modified { color: #d29922; }
 .panel .structural li.removed { color: #f85149; }
+.panel .code-section { margin-top: 8px; }
+.panel .code-file { margin-bottom: 8px; }
+.panel .code-file-name { font-size: 11px; font-family: monospace; color: #8b949e; padding: 4px 8px; background: #161b22; border-radius: 4px 4px 0 0; border: 1px solid #21262d; border-bottom: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+.panel .code-file-name:hover { color: #c9d1d9; }
+.panel .code-file-name .toggle { font-size: 10px; color: #484f58; }
+.panel .code-diff { font-family: monospace; font-size: 11px; line-height: 1.5; padding: 8px; background: #0d1117; border: 1px solid #21262d; border-radius: 0 0 4px 4px; overflow-x: auto; white-space: pre; max-height: 300px; overflow-y: auto; }
+.panel .code-diff .line-add { color: #6fdd8b; background: #0d2818; display: block; }
+.panel .code-diff .line-del { color: #f85149; background: #2d0d0d; display: block; }
+.panel .code-diff .line-hunk { color: #6e40c9; display: block; margin-top: 4px; }
+.panel .code-diff .line-ctx { color: #8b949e; display: block; }
+.panel .code-diff.collapsed { display: none; }
 .trace { padding: 16px 24px; border-top: 1px solid #21262d; max-height: 200px; overflow-y: auto; }
 .trace h2 { font-size: 14px; color: #f0f6fc; margin-bottom: 12px; }
 .decision { margin-bottom: 12px; }
@@ -77,7 +88,7 @@ header h1 { font-size: 18px; color: #f0f6fc; }
   
   <header>
     <h1>Differ</h1>
-    <p class="intent">Build a validation prototype of differ — a systems-level code review tool that renders topology-first interactive HTML reviews</p>
+    <p class="intent">Move schema validation from a standalone ValidationService into the ApiGateway middleware layer</p>
     <span class="intent-badge satisfied">
       Intent satisfied
     </span>
@@ -94,35 +105,23 @@ header h1 { font-size: 18px; color: #f0f6fc; }
     <h2>Decision Trace</h2>
     
     <div class="decision">
-      <strong>Self-contained HTML output with inline force-directed graph simulation</strong>
-      <div class="alternatives">Considered: Use D3.js from CDN, Use a canvas-based renderer, Server-side rendering</div>
-      <div class="rationale">Zero external dependencies means the review.html works offline, loads instantly, and can be shared as a single file</div>
+      <strong>Inline validation into gateway middleware</strong>
+      <div class="alternatives">Considered: Keep as separate service, Move to each downstream service</div>
+      <div class="rationale">Removes a network hop, enforces a single contract at the system boundary, reduces deployment surface</div>
     </div>
 
     <div class="decision">
-      <strong>Rounded rectangles instead of circles for nodes</strong>
-      <div class="alternatives">Considered: Circles with truncated labels, Circles with tooltips on hover</div>
-      <div class="rationale">Full node labels are essential for readability — the topology diagram must be glanceable without interaction</div>
-    </div>
-
-    <div class="decision">
-      <strong>Agent self-reports the delta rather than inferring from static analysis</strong>
-      <div class="alternatives">Considered: Tree-sitter AST diffing, Call graph extraction from imports</div>
-      <div class="rationale">Dramatically simpler to build, validates the core UX hypothesis without investing in analysis infrastructure</div>
-    </div>
-
-    <div class="decision">
-      <strong>Topology file is checked into the repo and agent-maintained</strong>
-      <div class="alternatives">Considered: Infer topology from accumulated delta history, No baseline — agent declares full topology each time</div>
-      <div class="rationale">Simple source of truth with no cold-start problem; stays fresh because agents update it as part of their workflow</div>
+      <strong>Use a SchemaRegistry class rather than inline schemas</strong>
+      <div class="alternatives">Considered: Hardcode schemas per route, Load from external config service</div>
+      <div class="rationale">Keeps schemas co-located with the gateway but decoupled from route handlers, allows future extraction if needed</div>
     </div>
   </div>
 </div>
 <script>
-const DATA = {"topology":{"nodes":[{"id":"CLI","type":"module","files":["src/cli.ts"],"description":"Command-line interface — parses arguments and dispatches to commands"},{"id":"Renderer","type":"module","files":["src/render.ts"],"description":"Generates self-contained interactive HTML from topology + delta data"},{"id":"Types","type":"module","files":["src/types.ts"],"description":"TypeScript type definitions for topology and system delta schemas"},{"id":"Init","type":"module","files":["src/init.ts"],"description":"Detects repo structure and scaffolds a topology.json"},{"id":"AgentProtocol","type":"document","files":["AGENT_PROTOCOL.md"],"description":"Instructions agents follow to produce system deltas and maintain topology"}],"edges":[{"from":"CLI","to":"Renderer","type":"calls","description":"review command invokes renderReview()"},{"from":"CLI","to":"Init","type":"calls","description":"init command invokes initTopology()"},{"from":"Renderer","to":"Types","type":"depends","description":"imports Topology and SystemDelta types"},{"from":"Init","to":"Types","type":"depends","description":"imports Topology and TopologyNode types"}]},"delta":{"intent":"Build a validation prototype of differ — a systems-level code review tool that renders topology-first interactive HTML reviews","intent_satisfied":true,"changed":[],"added":["CLI","Renderer","Types","Init","AgentProtocol"],"removed":[],"moved":[],"edges_added":[{"from":"CLI","to":"Renderer","type":"calls"},{"from":"CLI","to":"Init","type":"calls"},{"from":"Renderer","to":"Types","type":"depends"},{"from":"Init","to":"Types","type":"depends"}],"edges_removed":[],"blast_radius":[],"scope_violations":[],"decision_trace":[{"decision":"Self-contained HTML output with inline force-directed graph simulation","alternatives":["Use D3.js from CDN","Use a canvas-based renderer","Server-side rendering"],"rationale":"Zero external dependencies means the review.html works offline, loads instantly, and can be shared as a single file"},{"decision":"Rounded rectangles instead of circles for nodes","alternatives":["Circles with truncated labels","Circles with tooltips on hover"],"rationale":"Full node labels are essential for readability — the topology diagram must be glanceable without interaction"},{"decision":"Agent self-reports the delta rather than inferring from static analysis","alternatives":["Tree-sitter AST diffing","Call graph extraction from imports"],"rationale":"Dramatically simpler to build, validates the core UX hypothesis without investing in analysis infrastructure"},{"decision":"Topology file is checked into the repo and agent-maintained","alternatives":["Infer topology from accumulated delta history","No baseline — agent declares full topology each time"],"rationale":"Simple source of truth with no cold-start problem; stays fresh because agents update it as part of their workflow"}]}};
+const DATA = {"topology":{"nodes":[{"id":"ApiGateway","type":"service","files":["src/gateway/**"],"description":"HTTP entry point, routes requests and enforces schema validation"},{"id":"AuthService","type":"service","files":["src/auth/**"],"description":"Handles authentication and session management"},{"id":"OrderService","type":"service","files":["src/orders/**"],"description":"Processes and manages customer orders"},{"id":"PaymentService","type":"service","files":["src/payments/**"],"description":"Handles payment processing and billing"},{"id":"NotificationService","type":"service","files":["src/notifications/**"],"description":"Sends emails, push notifications, and SMS"}],"edges":[{"from":"ApiGateway","to":"AuthService","type":"calls","description":"JWT validation on every request"},{"from":"ApiGateway","to":"OrderService","type":"calls","description":"REST /api/orders/*"},{"from":"ApiGateway","to":"PaymentService","type":"calls","description":"REST /api/payments/*"},{"from":"OrderService","to":"PaymentService","type":"calls","description":"charge on order confirmation"},{"from":"OrderService","to":"NotificationService","type":"emits","description":"order.confirmed event"},{"from":"PaymentService","to":"NotificationService","type":"emits","description":"payment.processed event"}]},"delta":{"intent":"Move schema validation from a standalone ValidationService into the ApiGateway middleware layer","intent_satisfied":true,"changed":[{"id":"ApiGateway","summary":"Now handles request schema validation inline via middleware","before":"Only routed requests to downstream services","structural_changes":["added: validateSchema()","added: SchemaRegistry class","modified: handleRequest() — now calls validateSchema before routing"]}],"added":[],"removed":["ValidationService"],"moved":[{"what":"schema validation logic","from":"ValidationService","to":"ApiGateway"}],"edges_added":[],"edges_removed":[{"from":"ApiGateway","to":"ValidationService","type":"calls"}],"blast_radius":["OrderService","AuthService"],"scope_violations":[],"decision_trace":[{"decision":"Inline validation into gateway middleware","alternatives":["Keep as separate service","Move to each downstream service"],"rationale":"Removes a network hop, enforces a single contract at the system boundary, reduces deployment surface"},{"decision":"Use a SchemaRegistry class rather than inline schemas","alternatives":["Hardcode schemas per route","Load from external config service"],"rationale":"Keeps schemas co-located with the gateway but decoupled from route handlers, allows future extraction if needed"}]},"nodeDiffs":[]};
 
 (function() {
-  const { topology, delta } = DATA;
+  const { topology, delta, nodeDiffs } = DATA;
 
   const changedIds = new Set(delta.changed.map(c => c.id));
   const addedIds = new Set(delta.added);
@@ -445,8 +444,42 @@ const DATA = {"topology":{"nodes":[{"id":"CLI","type":"module","files":["src/cli
       html += '</div>';
     }
 
+    // Code diff
+    const nodeDiff = nodeDiffs.find(nd => nd.nodeId === id);
+    if (nodeDiff && nodeDiff.files.length > 0) {
+      html += '<div class="panel-section code-section">';
+      html += '<h3>Code</h3>';
+      nodeDiff.files.forEach((f, idx) => {
+        html += '<div class="code-file">';
+        html += '<div class="code-file-name" data-toggle="diff"><span>' + escapeForHtml(f.file) + '</span><span class="toggle">collapse</span></div>';
+        html += '<div class="code-diff">';
+        const lines = f.hunks.split("\n");
+        lines.forEach(line => {
+          if (line.startsWith("+")) html += '<span class="line-add">' + escapeForHtml(line) + '</span>';
+          else if (line.startsWith("-")) html += '<span class="line-del">' + escapeForHtml(line) + '</span>';
+          else if (line.startsWith("@@")) html += '<span class="line-hunk">' + escapeForHtml(line) + '</span>';
+          else html += '<span class="line-ctx">' + escapeForHtml(line) + '</span>';
+        });
+        html += '</div></div>';
+      });
+      html += '</div>';
+    }
+
     panel.innerHTML = html || '<div class="panel-empty">No details for this node</div>';
   }
+
+  function escapeForHtml(s) {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  // Event delegation for collapsible diffs
+  document.getElementById("panel").addEventListener("click", function(e) {
+    const toggle = e.target.closest("[data-toggle=diff]");
+    if (toggle) {
+      const diff = toggle.nextElementSibling;
+      if (diff) diff.classList.toggle("collapsed");
+    }
+  });
 })();
 
 </script>
