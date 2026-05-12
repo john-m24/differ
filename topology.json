@@ -35,13 +35,35 @@
       "type": "ci",
       "files": [".github/workflows/differ-review.yml"],
       "description": "GitHub Actions workflow that generates review.html on PRs and posts artifact link as comment"
+    },
+    {
+      "id": "Server",
+      "type": "module",
+      "files": ["src/server.ts"],
+      "description": "Local HTTP server for live topology editing with SSE refresh"
+    },
+    {
+      "id": "ChatAgent",
+      "type": "module",
+      "files": ["src/chat-agent.ts"],
+      "description": "Interface to Claude Code CLI for natural language topology edits"
+    },
+    {
+      "id": "RenderServe",
+      "type": "module",
+      "files": ["src/render-serve.ts"],
+      "description": "Extends the review HTML with chat panel and live-reload for serve mode"
     }
   ],
   "edges": [
     { "from": "CLI", "to": "Renderer", "type": "calls", "description": "review command invokes renderReview()" },
     { "from": "CLI", "to": "Init", "type": "calls", "description": "init command invokes initTopology()" },
+    { "from": "CLI", "to": "Server", "type": "calls", "description": "serve command invokes startServer()" },
     { "from": "Renderer", "to": "Types", "type": "depends", "description": "imports Topology and SystemDelta types" },
     { "from": "Init", "to": "Types", "type": "depends", "description": "imports Topology and TopologyNode types" },
-    { "from": "CIWorkflow", "to": "CLI", "type": "calls", "description": "runs differ review in CI" }
+    { "from": "CIWorkflow", "to": "CLI", "type": "calls", "description": "runs differ review in CI" },
+    { "from": "Server", "to": "RenderServe", "type": "calls", "description": "generates HTML with chat panel" },
+    { "from": "Server", "to": "ChatAgent", "type": "calls", "description": "forwards chat messages to Claude CLI" },
+    { "from": "RenderServe", "to": "Renderer", "type": "depends", "description": "wraps base review HTML with chat UI" }
   ]
 }
