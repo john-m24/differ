@@ -1,8 +1,10 @@
 import type { Topology, SystemDelta } from "./types.js";
 import type { NodeDiff } from "./diff.js";
+import { computeLayout } from "./layout.js";
 
 export function renderReview(topology: Topology, delta: SystemDelta, nodeDiffs?: NodeDiff[]): string {
-  const data = JSON.stringify({ topology, delta, nodeDiffs: nodeDiffs || [] })
+  const layout = computeLayout(topology, delta, nodeDiffs);
+  const data = JSON.stringify({ topology, delta, nodeDiffs: nodeDiffs || [], layout })
     .replace(/<\//g, "<\\/")
     .replace(/<!--/g, "<\\!--");
 
@@ -162,7 +164,7 @@ header h1 { font-size: 15px; font-weight: 600; color: var(--text-secondary); let
 .node.selected rect { stroke-width: 2.5; }
 .node:hover rect { filter: brightness(1.2); }
 
-.edge { stroke: var(--border); stroke-width: 1; fill: none; marker-end: url(#arr); }
+.edge { stroke: var(--border); stroke-width: 1.2; fill: none; }
 .edge.added { stroke: var(--accent-green); stroke-width: 1.5; }
 .edge.removed { stroke: var(--accent-red); stroke-dasharray: 4; }
 .elabel { font-size: 8px; fill: var(--text-tertiary); text-anchor: middle; opacity: 0; transition: opacity 0.15s; }
@@ -311,61 +313,77 @@ const SCRIPT = `
   });
 
   function initGraph() {
-    const allNodeIds = new Set([...topology.nodes.map(n => n.id), ...delta.added, ...delta.removed]);
-    const nodes = Array.from(allNodeIds).map(id => {
-      const tn = topology.nodes.find(n => n.id === id);
-      const nd = nodeDiffs.find(d => d.nodeId === id);
-      const w = nd ? nd.files.reduce((s, f) => s + f.hunks.split("\\n").length, 0) : 0;
-      return { id, type: tn?.type || "", desc: tn?.description || "", status: getStatus(id), weight: w };
-    });
-    const maxW = Math.max(1, ...nodes.map(n => n.weight));
-    const edges = [...topology.edges, ...delta.edges_added].map(e => {
-      const k = e.from + "->" + e.to;
-      return { source: e.from, target: e.to, desc: e.description || "", status: removedEdgeKeys.has(k) ? "removed" : addedEdgeKeys.has(k) ? "added" : "" };
-    });
+    const { nodes, edges, width, height } = DATA.layout;
 
     const svg = document.getElementById("graph");
-    const W = svg.clientWidth, H = svg.clientHeight;
-    svg.setAttribute("viewBox", "0 0 " + W + " " + H);
-    svg.innerHTML = '<defs><marker id="arr" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--border)"/></marker></defs>';
+    svg.setAttribute("viewBox", "0 0 " + width + " " + height);
+    svg.innerHTML = '<defs><marker id="arr" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--border)"/></marker><marker id="arr-add" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--accent-green)"/></marker><marker id="arr-del" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--accent-red)"/></marker></defs>';
 
-    const nm = new Map();
-    nodes.forEach((n, i) => {
-      const a = (2*Math.PI*i)/nodes.length, r = Math.min(W,H)*0.3;
-      n.x = W/2+r*Math.cos(a); n.y = H/2+r*Math.sin(a);
-      n.w = Math.max(80, n.id.length*8+24) + (n.status!=="unchanged" ? Math.min(20,(n.weight/maxW)*20) : 0);
-      n.h = 34 + (n.status!=="unchanged" ? Math.min(12,(n.weight/maxW)*12) : 0);
-      n.vx=0; n.vy=0; nm.set(n.id, n);
-    });
-    for(let t=0;t<300;t++){
-      for(let i=0;i<nodes.length;i++) for(let j=i+1;j<nodes.length;j++){
-        const a=nodes[i],b=nodes[j]; let dx=b.x-a.x,dy=b.y-a.y,d=Math.sqrt(dx*dx+dy*dy)||1,f=10000/(d*d);
-        a.vx-=(dx/d)*f;a.vy-=(dy/d)*f;b.vx+=(dx/d)*f;b.vy+=(dy/d)*f;
+    // Draw edges as paths following dagre points
+    edges.forEach(e => {
+      const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      g.setAttribute("class", "edge-group");
+      g.dataset.source = e.source;
+      g.dataset.target = e.target;
+
+      if (e.points && e.points.length >= 2) {
+        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        let d = "M " + e.points[0].x + " " + e.points[0].y;
+        for (let i = 1; i < e.points.length; i++) {
+          d += " L " + e.points[i].x + " " + e.points[i].y;
+        }
+        path.setAttribute("d", d);
+        path.setAttribute("class", "edge " + e.status);
+        if (e.status === "added") path.style.markerEnd = "url(#arr-add)";
+        else if (e.status === "removed") path.style.markerEnd = "url(#arr-del)";
+        else path.style.markerEnd = "url(#arr)";
+        g.appendChild(path);
+
+        if (e.description) {
+          const mid = e.points[Math.floor(e.points.length / 2)];
+          const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+          label.setAttribute("x", mid.x);
+          label.setAttribute("y", mid.y - 8);
+          label.setAttribute("class", "elabel");
+          label.textContent = e.description;
+          g.appendChild(label);
+        }
       }
-      edges.forEach(e=>{const a=nm.get(e.source),b=nm.get(e.target);if(!a||!b)return;let dx=b.x-a.x,dy=b.y-a.y,d=Math.sqrt(dx*dx+dy*dy)||1,f=(d-160)*0.008;a.vx+=(dx/d)*f;a.vy+=(dy/d)*f;b.vx-=(dx/d)*f;b.vy-=(dy/d)*f;});
-      nodes.forEach(n=>{n.vx+=(W/2-n.x)*0.001;n.vy+=(H/2-n.y)*0.001;n.vx*=0.82;n.vy*=0.82;n.x+=n.vx;n.y+=n.vy;n.x=Math.max(n.w/2+10,Math.min(W-n.w/2-10,n.x));n.y=Math.max(n.h/2+10,Math.min(H-n.h/2-10,n.y));});
-    }
-
-    function ep(a,b){const dx=b.x-a.x,dy=b.y-a.y,ang=Math.atan2(dy,dx);function ix(hw,hh,an){const ac=Math.abs(Math.cos(an)),as=Math.abs(Math.sin(an));return hw*as<=hh*ac?hw/ac:hh/as;}return{x1:a.x+Math.cos(ang)*ix(a.w/2,a.h/2,ang),y1:a.y+Math.sin(ang)*ix(a.w/2,a.h/2,ang),x2:b.x-Math.cos(ang)*ix(b.w/2,b.h/2,ang+Math.PI),y2:b.y-Math.sin(ang)*ix(b.w/2,b.h/2,ang+Math.PI)};}
-
-    edges.forEach(e=>{const a=nm.get(e.source),b=nm.get(e.target);if(!a||!b)return;const p=ep(a,b);
-      const g=document.createElementNS("http://www.w3.org/2000/svg","g");g.setAttribute("class","edge-group");
-      const l=document.createElementNS("http://www.w3.org/2000/svg","line");
-      l.setAttribute("x1",p.x1);l.setAttribute("y1",p.y1);l.setAttribute("x2",p.x2);l.setAttribute("y2",p.y2);
-      l.setAttribute("class","edge "+e.status);l.dataset.source=e.source;l.dataset.target=e.target;g.appendChild(l);
-      if(e.desc){const t=document.createElementNS("http://www.w3.org/2000/svg","text");t.setAttribute("x",(p.x1+p.x2)/2);t.setAttribute("y",(p.y1+p.y2)/2-5);t.setAttribute("class","elabel");t.textContent=e.desc;g.appendChild(t);}
       svg.appendChild(g);
     });
 
-    nodes.forEach(n=>{
-      const g=document.createElementNS("http://www.w3.org/2000/svg","g");g.setAttribute("class","node "+n.status);
-      g.setAttribute("transform","translate("+n.x+","+n.y+")");g.dataset.nodeId=n.id;
-      const r=document.createElementNS("http://www.w3.org/2000/svg","rect");
-      r.setAttribute("x",-n.w/2);r.setAttribute("y",-n.h/2);r.setAttribute("width",n.w);r.setAttribute("height",n.h);g.appendChild(r);
-      const t=document.createElementNS("http://www.w3.org/2000/svg","text");t.setAttribute("class","nlabel");t.setAttribute("y",n.type?"-3":"0");t.textContent=n.id;g.appendChild(t);
-      if(n.type){const tp=document.createElementNS("http://www.w3.org/2000/svg","text");tp.setAttribute("class","ntype");tp.setAttribute("y","10");tp.textContent=n.type;g.appendChild(tp);}
-      g.addEventListener("click",()=>selectGraphNode(n.id));svg.appendChild(g);
+    // Draw nodes at pre-computed positions
+    nodes.forEach(n => {
+      const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      g.setAttribute("class", "node " + n.status);
+      g.setAttribute("transform", "translate(" + n.x + "," + n.y + ")");
+      g.dataset.nodeId = n.id;
+
+      const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+      rect.setAttribute("x", -n.width / 2);
+      rect.setAttribute("y", -n.height / 2);
+      rect.setAttribute("width", n.width);
+      rect.setAttribute("height", n.height);
+      g.appendChild(rect);
+
+      const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      text.setAttribute("class", "nlabel");
+      text.setAttribute("y", n.type ? "-3" : "0");
+      text.textContent = n.id;
+      g.appendChild(text);
+
+      if (n.type) {
+        const tp = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        tp.setAttribute("class", "ntype");
+        tp.setAttribute("y", "10");
+        tp.textContent = n.type;
+        g.appendChild(tp);
+      }
+
+      g.addEventListener("click", () => selectGraphNode(n.id));
+      svg.appendChild(g);
     });
+
     applyFilters();
   }
 
@@ -391,10 +409,12 @@ const SCRIPT = `
   const activeFilters=new Set(["changed","added","removed","blast-radius"]);
   function applyFilters(){
     document.querySelectorAll(".node").forEach(g=>{g.style.display=activeFilters.has(getStatus(g.dataset.nodeId))?"":"none";});
-    document.querySelectorAll(".edge-group").forEach(g=>{const l=g.querySelector("line");if(!l)return;
-      const s=document.querySelector('.node[data-node-id="'+l.dataset.source+'"]');
-      const t=document.querySelector('.node[data-node-id="'+l.dataset.target+'"]');
-      g.style.display=(s&&s.style.display!==""&&t&&t.style.display!=="")||(s&&s.style.display!=="none"&&t&&t.style.display!=="none")?"":"none";
+    document.querySelectorAll(".edge-group").forEach(g=>{
+      const src=g.dataset.source, tgt=g.dataset.target;
+      const sNode=document.querySelector('.node[data-node-id="'+src+'"]');
+      const tNode=document.querySelector('.node[data-node-id="'+tgt+'"]');
+      const visible = sNode && tNode && sNode.style.display!=="none" && tNode.style.display!=="none";
+      g.style.display = visible ? "" : "none";
     });
   }
   document.getElementById("filters")?.addEventListener("click",function(e){
