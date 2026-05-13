@@ -65,6 +65,12 @@
       "type": "script",
       "files": ["scripts/serve-review.sh"],
       "description": "Ensures differ serve is running on an available port and prints the review URL"
+    },
+    {
+      "id": "Analyze",
+      "type": "module",
+      "files": ["src/analyze.ts"],
+      "description": "AI analysis pipeline — sends git diff + topology to Claude, generates SYSTEM_DELTA.json"
     }
   ],
   "edges": [
@@ -77,7 +83,9 @@
     { "from": "Server", "to": "RenderServe", "type": "calls", "description": "generates HTML with chat panel" },
     { "from": "Server", "to": "ChatAgent", "type": "calls", "description": "forwards chat messages to Claude CLI" },
     { "from": "RenderServe", "to": "Renderer", "type": "depends", "description": "wraps base review HTML with chat UI" },
-    { "from": "StopHook", "to": "ServeScript", "type": "calls", "description": "hook invokes serve-review.sh when changes detected" },
+    { "from": "CLI", "to": "Analyze", "type": "calls", "description": "analyze command invokes analyzeDiff()" },
+    { "from": "Analyze", "to": "Types", "type": "depends", "description": "imports Topology and SystemDelta types" },
+    { "from": "StopHook", "to": "CLI", "type": "calls", "description": "hook runs differ analyze then serve-review.sh" },
     { "from": "ServeScript", "to": "CLI", "type": "calls", "description": "starts differ serve on available port" }
   ]
 }

@@ -5,8 +5,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if [ -f topology.json ] && [ -f SYSTEM_DELTA.json ] && [ -n \"$(git status --porcelain)\" ]; then bash scripts/serve-review.sh; fi",
-            "timeout": 10
+            "command": "if [ -f topology.json ] && [ -n \"$(git status --porcelain)\" ]; then node dist/cli.js analyze && bash scripts/serve-review.sh; fi",
+            "timeout": 130
           }
         ]
       }

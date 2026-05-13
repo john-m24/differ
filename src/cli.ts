@@ -1,9 +1,10 @@
 import { program } from "commander";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { renderReview } from "./render.js";
 import { initTopology } from "./init.js";
 import { captureDiff, mapDiffsToNodes } from "./diff.js";
+import { analyzeDiff, buildPrompt } from "./analyze.js";
 import { startServer } from "./server.js";
 import type { Topology, SystemDelta } from "./types.js";
 
@@ -57,6 +58,64 @@ program
       base: opts.base,
       port: parseInt(opts.port),
     });
+  });
+
+program
+  .command("analyze")
+  .description("Generate SYSTEM_DELTA.json from git diff using Claude")
+  .option("-t, --topology <path>", "path to topology.json", "topology.json")
+  .option("-o, --output <path>", "output SYSTEM_DELTA.json path", "SYSTEM_DELTA.json")
+  .option("-b, --base <ref>", "git base ref for diff", "origin/main")
+  .option("-i, --intent <text>", "hint about what the changes achieve")
+  .option("-m, --model <model>", "Claude model to use", "sonnet")
+  .option("--verbose", "print prompt and raw response")
+  .option("--dry-run", "print prompt without calling Claude")
+  .action((opts) => {
+    const topologyPath = resolve(opts.topology);
+    const outputPath = resolve(opts.output);
+
+    const fileDiffs = captureDiff(opts.base, process.cwd());
+    if (fileDiffs.length === 0) {
+      console.log("No changes to analyze.");
+      return;
+    }
+
+    let topology: Topology | null = null;
+    let nodeDiffs: ReturnType<typeof mapDiffsToNodes> | null = null;
+
+    if (existsSync(topologyPath)) {
+      topology = JSON.parse(readFileSync(topologyPath, "utf-8"));
+      nodeDiffs = mapDiffsToNodes(fileDiffs, topology!);
+      console.log(
+        `Diff: ${fileDiffs.length} file(s) mapped to ${nodeDiffs.length} node(s)`
+      );
+    } else {
+      console.log("No topology.json found — analyzing diff without node mapping.");
+    }
+
+    if (opts.dryRun) {
+      const prompt = buildPrompt({
+        fileDiffs,
+        nodeDiffs,
+        topology,
+        intent: opts.intent,
+      });
+      console.log(prompt);
+      return;
+    }
+
+    console.log("Analyzing with Claude...");
+    const delta = analyzeDiff({
+      fileDiffs,
+      nodeDiffs,
+      topology,
+      intent: opts.intent,
+      model: opts.model,
+      verbose: opts.verbose,
+    });
+
+    writeFileSync(outputPath, JSON.stringify(delta, null, 2) + "\n");
+    console.log(`Analysis written to ${outputPath}`);
   });
 
 program
