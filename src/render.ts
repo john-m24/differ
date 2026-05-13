@@ -53,9 +53,7 @@ ${SCRIPT}
 </html>`;
 }
 
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
+
 
 const CSS = `
 :root {
@@ -133,10 +131,20 @@ header h1 { font-size: 15px; font-weight: 600; color: var(--text-secondary); let
 .blast-item { font-size: 13px; color: var(--text-secondary); padding: 8px 12px; border: 1px solid #1a1a2e; border-radius: 6px; background: #0d0d14; }
 .blast-item strong { color: var(--accent-purple); }
 
-.decisions-list { display: flex; flex-direction: column; gap: 16px; }
-.decision-item strong { font-size: 13px; color: var(--text-primary); font-weight: 500; }
-.decision-item .considered { font-size: 12px; color: var(--text-tertiary); margin-top: 2px; }
-.decision-item .rationale { font-size: 12px; color: var(--accent-green); margin-top: 2px; }
+
+/* Decision-driven sections */
+.decision-section { margin-bottom: 32px; }
+.decision-header { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 12px; padding: 16px 18px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
+.decision-number { flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%; background: #1a1a2e; color: var(--accent-purple); font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; margin-top: 2px; }
+.decision-text { flex: 1; }
+.decision-title { font-size: 15px; color: var(--text-primary); font-weight: 500; display: block; margin-bottom: 4px; }
+.decision-rationale { font-size: 13px; color: var(--accent-green); margin: 0; line-height: 1.5; }
+.decision-alternatives { font-size: 12px; color: var(--text-tertiary); margin: 4px 0 0 0; font-style: italic; }
+.decision-section .node-card { margin-left: 38px; border-left: 2px solid #1a1a2e; }
+.decision-section .node-card:hover { border-left-color: var(--accent-purple); }
+.node-decision-links { padding: 8px 16px; background: #0d0d14; border-bottom: 1px solid var(--border); font-size: 11px; color: var(--text-tertiary); }
+.node-decision-links-label { font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; margin-right: 4px; }
+.node-decision-link { color: var(--accent-purple); }
 
 /* Graph */
 .graph-toolbar { padding: 8px 16px; border-bottom: 1px solid var(--border); display: flex; gap: 6px; }
@@ -206,45 +214,89 @@ const SCRIPT = `
     let h = '<div class="summary">';
     h += '<p class="summary-intent">' + esc(delta.intent) + '</p>';
 
-    // Changed + Added + Removed nodes as cards with code
-    const relevantNodes = [
+    // Lookup maps
+    const topoNodeById = {};
+    topology.nodes.forEach(n => { topoNodeById[n.id] = n; });
+    const diffById = {};
+    nodeDiffs.forEach(d => { diffById[d.nodeId] = d; });
+
+    // Build all relevant nodes
+    const allNodes = [
       ...delta.changed.map(c => ({ id: c.id, status: "changed", summary: c.summary, before: c.before, structural: c.structural_changes })),
-      ...delta.added.map(id => ({ id, status: "added", summary: topology.nodes.find(n => n.id === id)?.description || "", before: null, structural: [] })),
+      ...delta.added.map(id => ({ id, status: "added", summary: topoNodeById[id]?.description || "", before: null, structural: [] })),
       ...delta.removed.map(id => ({ id, status: "removed", summary: "This node was removed.", before: null, structural: [] }))
     ];
+    const nodeById = {};
+    allNodes.forEach(n => { nodeById[n.id] = n; });
 
-    if (relevantNodes.length > 0) {
-      h += '<div class="summary-group"><div class="summary-group-title">Changes</div>';
-      relevantNodes.forEach(n => {
-        const diff = nodeDiffs.find(nd => nd.nodeId === n.id);
-        h += '<div class="node-card" data-node="' + n.id + '">';
-        h += '<div class="node-card-header"><span class="node-badge ' + n.status + '">' + n.status + '</span>';
-        h += '<span class="node-card-name">' + esc(n.id) + '</span>';
-        if (n.summary) h += '<span class="node-card-desc">' + esc(n.summary) + '</span>';
-        h += '<span class="node-card-chevron">&#9656;</span></div>';
-
-        h += '<div class="node-card-body">';
-        if (n.before) {
-          h += '<div class="node-card-section"><h4>Before</h4><p style="color:var(--text-secondary);font-size:12px">' + esc(n.before) + '</p></div>';
-        }
-        if (n.structural && n.structural.length > 0) {
-          h += '<div class="node-card-section"><h4>Structural</h4><ul class="structural-list">';
-          n.structural.forEach(s => {
-            let cls = s.startsWith("added:") ? "add" : s.startsWith("modified:") ? "mod" : s.startsWith("removed:") ? "del" : "";
-            h += '<li class="' + cls + '">' + esc(s) + '</li>';
-          });
-          h += '</ul></div>';
-        }
-        if (diff && diff.files.length > 0) {
-          h += '<div class="node-card-section"><h4>Code</h4>';
-          diff.files.forEach(f => {
-            h += '<div class="code-file"><div class="code-file-header">' + esc(f.file) + '</div>';
-            h += '<div class="code-diff">' + renderDiffHtml(f.hunks) + '</div></div>';
-          });
-          h += '</div>';
-        }
-        h += '</div></div>';
+    // Build reverse map: nodeId -> decision labels
+    const nodeDecisionMap = {};
+    delta.decision_trace.forEach(d => {
+      d.nodes.forEach(nid => {
+        if (!nodeDecisionMap[nid]) nodeDecisionMap[nid] = [];
+        nodeDecisionMap[nid].push(d.decision);
       });
+    });
+
+    function renderNodeCard(n) {
+      const diff = diffById[n.id];
+      let c = '<div class="node-card" data-node="' + n.id + '">';
+      c += '<div class="node-card-header"><span class="node-badge ' + n.status + '">' + n.status + '</span>';
+      c += '<span class="node-card-name">' + esc(n.id) + '</span>';
+      if (n.summary) c += '<span class="node-card-desc">' + esc(n.summary) + '</span>';
+      c += '<span class="node-card-chevron">&#9656;</span></div>';
+      c += '<div class="node-card-body">';
+      const linked = nodeDecisionMap[n.id] || [];
+      if (linked.length > 1) {
+        c += '<div class="node-decision-links"><span class="node-decision-links-label">Also shaped by:</span>';
+        c += linked.map(d => '<span class="node-decision-link">' + esc(d) + '</span>').join(', ');
+        c += '</div>';
+      }
+      if (n.before) {
+        c += '<div class="node-card-section"><h4>Before</h4><p style="color:var(--text-secondary);font-size:12px">' + esc(n.before) + '</p></div>';
+      }
+      if (n.structural && n.structural.length > 0) {
+        c += '<div class="node-card-section"><h4>Structural</h4><ul class="structural-list">';
+        n.structural.forEach(s => {
+          let cls = s.startsWith("added:") ? "add" : s.startsWith("modified:") ? "mod" : s.startsWith("removed:") ? "del" : "";
+          c += '<li class="' + cls + '">' + esc(s) + '</li>';
+        });
+        c += '</ul></div>';
+      }
+      if (diff && diff.files.length > 0) {
+        c += '<div class="node-card-section"><h4>Code</h4>';
+        diff.files.forEach(f => {
+          c += '<div class="code-file"><div class="code-file-header">' + esc(f.file) + '</div>';
+          c += '<div class="code-diff">' + renderDiffHtml(f.hunks) + '</div></div>';
+        });
+        c += '</div>';
+      }
+      c += '</div></div>';
+      return c;
+    }
+
+    // Decision-driven sections
+    delta.decision_trace.forEach((d, idx) => {
+      h += '<div class="decision-section">';
+      h += '<div class="decision-header"><span class="decision-number">' + (idx + 1) + '</span>';
+      h += '<div class="decision-text"><strong class="decision-title">' + esc(d.decision) + '</strong>';
+      h += '<p class="decision-rationale">' + esc(d.rationale) + '</p>';
+      if (d.alternatives.length > 0) {
+        h += '<p class="decision-alternatives">vs. ' + d.alternatives.map(a => esc(a)).join(", ") + '</p>';
+      }
+      h += '</div></div>';
+      d.nodes.forEach(nid => {
+        const n = nodeById[nid];
+        if (n) h += renderNodeCard(n);
+      });
+      h += '</div>';
+    });
+
+    // Other Changes — nodes not claimed by any decision
+    const unclaimed = allNodes.filter(n => !nodeDecisionMap[n.id]);
+    if (unclaimed.length > 0) {
+      h += '<div class="summary-group"><div class="summary-group-title">Other Changes</div>';
+      unclaimed.forEach(n => { h += renderNodeCard(n); });
       h += '</div>';
     }
 
@@ -265,21 +317,10 @@ const SCRIPT = `
     if (delta.blast_radius.length > 0) {
       h += '<div class="summary-group"><div class="summary-group-title">Blast Radius</div><div class="blast-list">';
       delta.blast_radius.forEach(id => {
-        const node = topology.nodes.find(n => n.id === id);
+        const node = topoNodeById[id];
         h += '<div class="blast-item"><strong>' + esc(id) + '</strong>';
         if (node) h += ' &mdash; ' + esc(node.description);
         h += '</div>';
-      });
-      h += '</div></div>';
-    }
-
-    // Decisions
-    if (delta.decision_trace.length > 0) {
-      h += '<div class="summary-group"><div class="summary-group-title">Decisions</div><div class="decisions-list">';
-      delta.decision_trace.forEach(d => {
-        h += '<div class="decision-item"><strong>' + esc(d.decision) + '</strong>';
-        h += '<div class="considered">vs. ' + d.alternatives.map(a => esc(a)).join(", ") + '</div>';
-        h += '<div class="rationale">' + esc(d.rationale) + '</div></div>';
       });
       h += '</div></div>';
     }

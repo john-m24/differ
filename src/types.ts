@@ -34,6 +34,7 @@ export interface Decision {
   decision: string;
   alternatives: string[];
   rationale: string;
+  nodes: string[];
 }
 
 export interface SystemDelta {

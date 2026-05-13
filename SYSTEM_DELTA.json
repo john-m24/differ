@@ -1,98 +1,87 @@
 {
-  "added": [
-    "Analyze"
-  ],
-  "changed": [
-    {
-      "id": "CLI",
-      "summary": "Added new 'analyze' command that generates SYSTEM_DELTA.json by calling Claude API with git diff and optional topology mapping",
-      "before": "Command-line interface with review, diff, init, and serve commands",
-      "structural_changes": [
-        "Added import: existsSync from node:fs",
-        "Added import: analyzeDiff, buildPrompt from ./analyze.js",
-        "Added command: analyze with options for topology path, output path, base ref, intent hint, model selection, verbose mode, and dry-run"
-      ]
-    },
-    {
-      "id": "StopHook",
-      "summary": "Modified to automatically invoke 'differ analyze' before launching review server and increased timeout to accommodate Claude API calls",
-      "before": "Hook that launched serve-review.sh only when both topology.json and SYSTEM_DELTA.json existed",
-      "structural_changes": [
-        "Modified command to call 'node dist/cli.js analyze' before serve script",
-        "Removed SYSTEM_DELTA.json existence check (now generated on-demand)",
-        "Increased timeout from 10 to 130 seconds"
-      ]
-    }
-  ],
+  "added": [],
   "removed": [],
   "moved": [],
-  "edges_added": [
+  "changed": [
     {
-      "from": "CLI",
-      "to": "Analyze",
-      "type": "calls",
-      "description": "analyze command invokes analyzeDiff() and buildPrompt() to generate semantic deltas"
+      "id": "Analyze",
+      "summary": "Extended prompt and schema to require decision_trace items include a nodes array linking decisions to topology node IDs",
+      "before": "Prompt instructed agent to capture decision_trace; schema defined decision/alternatives/rationale fields only",
+      "structural_changes": [
+        "modified: SYSTEM_PROMPT constant — added instruction requiring nodes array in decision_trace entries",
+        "modified: SYSTEM_DELTA_SCHEMA.decision_trace.items — added required 'nodes' field (array of strings)"
+      ]
     },
     {
-      "from": "StopHook",
-      "to": "CLI",
-      "type": "calls",
-      "description": "hook invokes 'differ analyze' command before launching serve-review.sh"
+      "id": "Renderer",
+      "summary": "Refactored review layout to render node cards nested under decision headers when nodes arrays present; falls back to flat layout otherwise",
+      "before": "Rendered changes as flat card list followed by separate decisions section; no structural grouping by decision",
+      "structural_changes": [
+        "added: CSS rules for .decision-section, .decision-header, .decision-number, .decision-text, .decision-title, .decision-rationale, .decision-alternatives, .node-decision-links",
+        "added: renderNodeCard() inline helper function",
+        "added: nodeDecisionMap reverse index (nodeId -> decision labels)",
+        "added: claimedIds Set to track nodes assigned to decisions",
+        "modified: main render flow — decision-section blocks with nested node cards when d.nodes present",
+        "modified: Changes section — conditionally titled 'Other Changes' when hasLinkedDecisions true",
+        "added: node-decision-links UI element for nodes shaped by multiple decisions"
+      ]
+    },
+    {
+      "id": "Types",
+      "summary": "Added nodes field to Decision interface to store topology node IDs shaped by each decision",
+      "before": "Decision interface included decision, alternatives, and rationale fields",
+      "structural_changes": [
+        "modified: Decision interface — added nodes: string[] field"
+      ]
     }
   ],
-  "edges_removed": [],
   "blast_radius": [
-    "CIWorkflow",
-    "ServeScript"
+    "CLI",
+    "RenderServe",
+    "Init"
   ],
+  "edges_added": [],
+  "edges_removed": [],
   "scope_violations": [],
-  "intent": "Add differ analyze command — AI-generated semantic analysis from git diffs",
+  "intent": "Decision-driven review UX — decisions as primary organizing structure with linked node cards",
   "intent_satisfied": true,
   "decision_trace": [
     {
-      "decision": "Generate SYSTEM_DELTA.json on-demand via Claude API rather than requiring manual creation",
+      "decision": "Bind decisions to topology nodes via explicit nodes array in schema",
       "alternatives": [
-        "Keep requiring manual SYSTEM_DELTA.json authoring",
-        "Use local static analysis heuristics",
-        "Integrate with existing external diff tools"
+        "Infer node associations from file paths in diff",
+        "Use free-text node references in rationale",
+        "No linking mechanism"
       ],
-      "rationale": "Automates semantic analysis by leveraging Claude's code understanding, eliminating manual delta authoring and enabling real-time architectural insights"
+      "rationale": "Explicit node IDs enable precise structural organization, validation against topology, and bidirectional navigation between decisions and affected components",
+      "nodes": [
+        "Analyze",
+        "Types"
+      ]
     },
     {
-      "decision": "Make topology.json optional for analyze command",
+      "decision": "Decisions as primary organizing sections in review UI",
       "alternatives": [
-        "Require topology.json to exist",
-        "Fail with error if topology missing",
-        "Generate minimal default topology"
+        "Keep decisions in separate metadata panel at bottom",
+        "Inline decisions as tags/badges on node cards",
+        "Show decisions in sidebar with click-to-highlight"
       ],
-      "rationale": "Allows basic git diff semantic analysis even in repos without topology, lowering adoption barrier while still providing node-mapped insights when topology exists"
+      "rationale": "Elevating decisions to top-level sections creates narrative flow where architectural choices drive the presentation of code changes, reducing cognitive load and surfacing intent first",
+      "nodes": [
+        "Renderer"
+      ]
     },
     {
-      "decision": "Invoke analyze automatically in Stop hook before serve",
+      "decision": "Backward-compatible fallback to flat layout when decisions lack node links",
       "alternatives": [
-        "Require developers to run analyze manually",
-        "Run analysis only in CI",
-        "Make hook opt-in via configuration"
+        "Require all existing deltas to be regenerated with nodes arrays",
+        "Ignore unlinked decisions entirely",
+        "Always use decision-first layout with empty sections"
       ],
-      "rationale": "Ensures SYSTEM_DELTA.json is always fresh when local changes occur, enabling immediate architectural review without extra steps"
-    },
-    {
-      "decision": "Increase Stop hook timeout from 10s to 130s",
-      "alternatives": [
-        "Keep 10s timeout and handle failures gracefully",
-        "Make timeout user-configurable",
-        "Run analyze asynchronously without blocking"
-      ],
-      "rationale": "Claude API calls require significantly more time than just launching server; 130s accommodates typical LLM response latency plus diff processing"
-    },
-    {
-      "decision": "Support dry-run and verbose modes for analyze command",
-      "alternatives": [
-        "Always execute full analysis",
-        "Provide only JSON output",
-        "Log prompt to separate debug file"
-      ],
-      "rationale": "Enables debugging of prompt construction and Claude responses, important for iterating on analysis quality and troubleshooting failures"
+      "rationale": "Conditional rendering based on hasLinkedDecisions enables incremental adoption without breaking existing review artifacts or forcing full regeneration",
+      "nodes": [
+        "Renderer"
+      ]
     }
   ]
 }

@@ -17,7 +17,7 @@ Rules:
 - Infer "intent" from the changes if not provided. State it as a concise task description.
 - "changed" maps to topology nodes whose files were modified. For each, summarize before/after in one sentence and list structural changes (added/modified/removed functions, types, exports).
 - "blast_radius" lists nodes that DEPEND ON or CALL INTO changed nodes (use edges). Do NOT include changed nodes themselves.
-- "decision_trace" captures non-trivial design choices visible in the diff.
+- "decision_trace" captures non-trivial design choices visible in the diff. For each decision, include a "nodes" array listing the IDs of topology nodes directly shaped by that decision. A node may appear under multiple decisions. Do NOT force decisions for mechanical/trivial changes — leave those nodes unlinked.
 - "scope_violations" flags changes to nodes not implied by the intent.
 - If no topology is provided, leave "changed" empty and focus on intent and decision_trace.
 - Use PascalCase for node IDs. Be concise — one sentence per summary.`;
@@ -105,11 +105,12 @@ const SYSTEM_DELTA_SCHEMA = {
       type: "array",
       items: {
         type: "object",
-        required: ["decision", "alternatives", "rationale"],
+        required: ["decision", "alternatives", "rationale", "nodes"],
         properties: {
           decision: { type: "string" },
           alternatives: { type: "array", items: { type: "string" } },
           rationale: { type: "string" },
+          nodes: { type: "array", items: { type: "string" } },
         },
       },
     },
