@@ -1,48 +1,98 @@
 {
-  "intent": "Persist PR reviews with rich markdown summary in PR comments + local review hook for dogfooding",
-  "intent_satisfied": true,
+  "added": [
+    "Analyze"
+  ],
   "changed": [
     {
-      "id": "CIWorkflow",
-      "summary": "PR comment now includes rich markdown summary extracted from SYSTEM_DELTA.json (intent, changes, blast radius, decisions, scope violations) with download link",
-      "before": "Simple comment linking to workflow artifact download",
+      "id": "CLI",
+      "summary": "Added new 'analyze' command that generates SYSTEM_DELTA.json by calling Claude API with git diff and optional topology mapping",
+      "before": "Command-line interface with review, diff, init, and serve commands",
       "structural_changes": [
-        "added: reads SYSTEM_DELTA.json and builds structured markdown body",
-        "added: sections for Changes, Added, Removed, Blast Radius, Key Decisions, Scope Violations",
-        "modified: comment body from static string to dynamic delta-driven content"
+        "Added import: existsSync from node:fs",
+        "Added import: analyzeDiff, buildPrompt from ./analyze.js",
+        "Added command: analyze with options for topology path, output path, base ref, intent hint, model selection, verbose mode, and dry-run"
+      ]
+    },
+    {
+      "id": "StopHook",
+      "summary": "Modified to automatically invoke 'differ analyze' before launching review server and increased timeout to accommodate Claude API calls",
+      "before": "Hook that launched serve-review.sh only when both topology.json and SYSTEM_DELTA.json existed",
+      "structural_changes": [
+        "Modified command to call 'node dist/cli.js analyze' before serve script",
+        "Removed SYSTEM_DELTA.json existence check (now generated on-demand)",
+        "Increased timeout from 10 to 130 seconds"
       ]
     }
   ],
-  "added": ["StopHook", "ServeScript"],
   "removed": [],
   "moved": [],
   "edges_added": [
-    { "from": "StopHook", "to": "ServeScript", "type": "calls", "description": "hook invokes serve-review.sh when changes detected" },
-    { "from": "ServeScript", "to": "CLI", "type": "calls", "description": "starts differ serve on available port" }
+    {
+      "from": "CLI",
+      "to": "Analyze",
+      "type": "calls",
+      "description": "analyze command invokes analyzeDiff() and buildPrompt() to generate semantic deltas"
+    },
+    {
+      "from": "StopHook",
+      "to": "CLI",
+      "type": "calls",
+      "description": "hook invokes 'differ analyze' command before launching serve-review.sh"
+    }
   ],
   "edges_removed": [],
-  "blast_radius": ["Server", "RenderServe"],
+  "blast_radius": [
+    "CIWorkflow",
+    "ServeScript"
+  ],
   "scope_violations": [],
+  "intent": "Add differ analyze command — AI-generated semantic analysis from git diffs",
+  "intent_satisfied": true,
   "decision_trace": [
     {
-      "decision": "Rich markdown summary in PR comment rather than just artifact link",
-      "alternatives": ["Keep artifact-only link", "Commit HTML to PR branch", "Host on external service"],
-      "rationale": "Markdown is immediately readable in the PR with zero setup. The interactive HTML stays as a downloadable artifact for deeper exploration."
+      "decision": "Generate SYSTEM_DELTA.json on-demand via Claude API rather than requiring manual creation",
+      "alternatives": [
+        "Keep requiring manual SYSTEM_DELTA.json authoring",
+        "Use local static analysis heuristics",
+        "Integrate with existing external diff tools"
+      ],
+      "rationale": "Automates semantic analysis by leveraging Claude's code understanding, eliminating manual delta authoring and enabling real-time architectural insights"
     },
     {
-      "decision": "Claude Code Stop hook for local review serving",
-      "alternatives": ["Git post-commit hook", "File watcher", "Manual command"],
-      "rationale": "Stop hook fires exactly when the agent finishes work. Conditional on dirty working tree so it only runs after actual changes, not planning."
+      "decision": "Make topology.json optional for analyze command",
+      "alternatives": [
+        "Require topology.json to exist",
+        "Fail with error if topology missing",
+        "Generate minimal default topology"
+      ],
+      "rationale": "Allows basic git diff semantic analysis even in repos without topology, lowering adoption barrier while still providing node-mapped insights when topology exists"
     },
     {
-      "decision": "Auto-find available port instead of fixed port",
-      "alternatives": ["Fixed port with error on conflict", "User-configured port"],
-      "rationale": "Multiple workspaces may run differ serve simultaneously. Scanning ports 3141-3200 avoids conflicts without config."
+      "decision": "Invoke analyze automatically in Stop hook before serve",
+      "alternatives": [
+        "Require developers to run analyze manually",
+        "Run analysis only in CI",
+        "Make hook opt-in via configuration"
+      ],
+      "rationale": "Ensures SYSTEM_DELTA.json is always fresh when local changes occur, enabling immediate architectural review without extra steps"
     },
     {
-      "decision": "Open-core architecture — free markdown + self-serve Pages, paid hosted service later",
-      "alternatives": ["Always require hosted service", "GitHub Pages only"],
-      "rationale": "Free tier drives adoption with zero setup. Hosted service (reviews.differ.dev) becomes the monetizable upgrade for private repos and teams."
+      "decision": "Increase Stop hook timeout from 10s to 130s",
+      "alternatives": [
+        "Keep 10s timeout and handle failures gracefully",
+        "Make timeout user-configurable",
+        "Run analyze asynchronously without blocking"
+      ],
+      "rationale": "Claude API calls require significantly more time than just launching server; 130s accommodates typical LLM response latency plus diff processing"
+    },
+    {
+      "decision": "Support dry-run and verbose modes for analyze command",
+      "alternatives": [
+        "Always execute full analysis",
+        "Provide only JSON output",
+        "Log prompt to separate debug file"
+      ],
+      "rationale": "Enables debugging of prompt construction and Claude responses, important for iterating on analysis quality and troubleshooting failures"
     }
   ]
 }
