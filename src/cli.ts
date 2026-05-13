@@ -6,6 +6,7 @@ import { initTopology } from "./init.js";
 import { captureDiff, mapDiffsToNodes } from "./diff.js";
 import { analyzeDiff, buildPrompt } from "./analyze.js";
 import { startServer } from "./server.js";
+import { runPersonalMode, promoteTopology } from "./personal.js";
 import type { Topology, SystemDelta } from "./types.js";
 
 program
@@ -123,8 +124,22 @@ program
   .description("Scaffold a topology.json by detecting repo structure")
   .option("-d, --dir <path>", "directory to scan", ".")
   .option("-o, --output <path>", "output file path", "topology.json")
+  .option("--promote", "promote .differ/topology.json to repo root")
   .action((opts) => {
-    initTopology({ dir: resolve(opts.dir), output: resolve(opts.output) });
+    if (opts.promote) {
+      promoteTopology(resolve(opts.dir || "."));
+    } else {
+      initTopology({ dir: resolve(opts.dir), output: resolve(opts.output) });
+    }
+  });
+
+program
+  .option("-b, --base <ref>", "git base ref", "HEAD~1")
+  .option("-p, --port <port>", "server port", "3141")
+  .option("-i, --intent <text>", "hint about what changed")
+  .option("-m, --model <model>", "Claude model", "sonnet")
+  .action((opts) => {
+    runPersonalMode(opts);
   });
 
 program.parse();

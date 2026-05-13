@@ -1,102 +1,114 @@
 {
-  "added": [],
-  "removed": [],
-  "moved": [],
-  "changed": [
-    {
-      "id": "Types",
-      "summary": "Added nodes field to Decision interface to store topology node IDs shaped by each decision",
-      "before": "Decision interface included decision, alternatives, and rationale fields",
-      "structural_changes": [
-        "modified: Decision interface — added nodes: string[] field"
-      ]
-    },
-    {
-      "id": "Analyze",
-      "summary": "Extended prompt to require decision_trace items include a nodes array linking decisions to topology node IDs",
-      "before": "Prompt instructed agent to capture decision_trace with decision/alternatives/rationale only",
-      "structural_changes": [
-        "modified: SYSTEM_PROMPT constant — added instruction requiring nodes array in decision_trace entries",
-        "modified: SYSTEM_DELTA_SCHEMA.decision_trace.items — added required 'nodes' field (array of strings)"
-      ]
-    },
-    {
-      "id": "Renderer",
-      "summary": "Refactored review layout to render node cards nested under decision headers when nodes arrays present",
-      "before": "Rendered changes as flat card list followed by separate decisions section with no structural grouping",
-      "structural_changes": [
-        "added: CSS rules for .decision-section, .decision-header, .decision-number, .decision-text, .decision-title, .decision-rationale, .decision-alternatives, .node-decision-links",
-        "added: renderNodeCard() inline helper function",
-        "added: nodeDecisionMap reverse index (nodeId -> decision labels)",
-        "added: topoNodeById and diffById lookup maps",
-        "modified: main render flow — decision-section blocks with nested node cards when d.nodes present",
-        "modified: Changes section — conditionally titled 'Other Changes' for unclaimed nodes",
-        "added: node-decision-links UI element for nodes shaped by multiple decisions",
-        "removed: escapeHtml function declaration (kept inline as esc)",
-        "removed: separate decisions list rendering at bottom"
-      ]
-    }
+  "added": [
+    "Personal",
+    "Diff",
+    "Layout"
   ],
   "blast_radius": [
-    "CLI",
-    "RenderServe",
-    "AgentProtocol",
-    "StopHook"
+    "CIWorkflow",
+    "StopHook",
+    "ServeScript"
   ],
-  "edges_added": [],
-  "edges_removed": [],
-  "scope_violations": [],
-  "intent": "Link decisions to topology nodes via explicit schema field and reorganize review UI to present decisions as primary organizing structure",
-  "intent_satisfied": true,
-  "decision_trace": [
+  "changed": [
     {
-      "decision": "Bind decisions to topology nodes via explicit nodes array in schema",
-      "alternatives": [
-        "Infer node associations from file paths in diff",
-        "Use free-text node references in rationale",
-        "No linking mechanism"
-      ],
-      "rationale": "Explicit node IDs enable precise structural organization, validation against topology, and bidirectional navigation between decisions and affected components",
-      "nodes": [
-        "Types",
-        "Analyze"
-      ]
-    },
-    {
-      "decision": "Decisions as primary organizing sections in review UI",
-      "alternatives": [
-        "Keep decisions in separate metadata panel at bottom",
-        "Inline decisions as tags/badges on node cards",
-        "Show decisions in sidebar with click-to-highlight"
-      ],
-      "rationale": "Elevating decisions to top-level sections creates narrative flow where architectural choices drive the presentation of code changes, reducing cognitive load and surfacing intent first",
-      "nodes": [
-        "Renderer"
-      ]
-    },
-    {
-      "decision": "Build reverse index nodeDecisionMap to support nodes appearing under multiple decisions",
-      "alternatives": [
-        "Duplicate node cards under each decision",
-        "Restrict each node to single decision",
-        "Show nodes only once under first decision"
-      ],
-      "rationale": "Reverse mapping allows efficient lookup while preserving many-to-many relationship; UI displays primary decision placement with 'Also shaped by' hints for cross-cutting concerns",
-      "nodes": [
-        "Renderer"
-      ]
-    },
-    {
-      "decision": "Partition nodes into decision-driven sections and 'Other Changes' fallback",
-      "alternatives": [
-        "Force all nodes into decisions even for trivial changes",
-        "Show all nodes in flat list with decision metadata inline",
-        "Hide nodes not linked to decisions"
-      ],
-      "rationale": "Unclaimed nodes represent mechanical changes without architectural significance; segregating them preserves clarity of decision narrative while maintaining completeness",
-      "nodes": [
-        "Renderer"
+      "id": "CLI",
+      "summary": "Added default command handler for zero-config personal mode and --promote flag to init command for migrating ephemeral topology to repo root",
+      "before": "Exposed explicit subcommands (review, analyze, serve, init) requiring manual invocation",
+      "structural_changes": [
+        "Added imports: runPersonalMode, promoteTopology from personal.js",
+        "Added --promote flag to init command; conditionally calls promoteTopology() when set instead of initTopology()",
+        "Added default command handler (bare 'differ' invocation) accepting --base, --port, --intent, --model options",
+        "Added action calling runPersonalMode(opts) for default command"
       ]
     }
-  ]
+  ],
+  "decision_trace": [
+    {
+      "decision": "Introduce zero-config personal mode triggered by bare 'differ' invocation",
+      "alternatives": [
+        "Keep explicit subcommands only, requiring users to chain review/analyze/serve manually",
+        "Make personal mode an explicit subcommand like 'differ personal'",
+        "Use configuration file to enable auto-mode"
+      ],
+      "rationale": "A default action provides the lowest friction for quick reviews — users can run a single command without subcommand knowledge. The tool auto-scaffolds topology in .differ/, runs analysis, and launches the review server in one shot.",
+      "nodes": [
+        "CLI",
+        "Personal"
+      ]
+    },
+    {
+      "decision": "Use .differ/ directory for ephemeral state and gitignore it",
+      "alternatives": [
+        "Store in system temp directory",
+        "Store in .git/differ/ alongside git metadata",
+        "Require users to manually create working directory"
+      ],
+      "rationale": "A local .differ/ directory keeps state adjacent to the project for easy inspection, supports promotion to repo root when ready, and is simple to exclude from version control. Local state is more discoverable than system temp.",
+      "nodes": [
+        "Personal"
+      ]
+    },
+    {
+      "decision": "Add --promote flag to init command rather than separate promote subcommand",
+      "alternatives": [
+        "Separate 'differ promote' subcommand",
+        "Manual file copy by user from .differ/ to root",
+        "Auto-promote after interactive confirmation"
+      ],
+      "rationale": "Overloading init with --promote reuses existing scaffolding logic and keeps topology lifecycle operations (create, promote) together under one command. Users testing personal mode can commit topology with a single flag.",
+      "nodes": [
+        "CLI"
+      ]
+    }
+  ],
+  "edges_added": [
+    {
+      "from": "CLI",
+      "to": "Personal",
+      "type": "calls",
+      "description": "bare differ command invokes runPersonalMode()"
+    },
+    {
+      "from": "Personal",
+      "to": "Init",
+      "type": "calls",
+      "description": "auto-scaffolds topology when none exists"
+    },
+    {
+      "from": "Personal",
+      "to": "Diff",
+      "type": "calls",
+      "description": "captures git diff for analysis"
+    },
+    {
+      "from": "Personal",
+      "to": "Analyze",
+      "type": "calls",
+      "description": "runs Claude analysis on captured diff"
+    },
+    {
+      "from": "Personal",
+      "to": "Server",
+      "type": "calls",
+      "description": "starts live review server"
+    },
+    {
+      "from": "Analyze",
+      "to": "Diff",
+      "type": "depends",
+      "description": "uses FileHunk and NodeDiff types"
+    },
+    {
+      "from": "Renderer",
+      "to": "Layout",
+      "type": "calls",
+      "description": "computes graph positions for topology nodes"
+    }
+  ],
+  "edges_removed": [],
+  "intent": "Add zero-config personal review mode that auto-runs diff capture, analysis, and review server on bare 'differ' invocation",
+  "intent_satisfied": true,
+  "moved": [],
+  "removed": [],
+  "scope_violations": []
 }

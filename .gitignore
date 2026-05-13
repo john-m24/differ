@@ -1,4 +1,5 @@
 node_modules/
 dist/
+.differ/
 /review.html
 *.tgz
