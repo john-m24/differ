@@ -53,6 +53,18 @@
       "type": "module",
       "files": ["src/render-serve.ts"],
       "description": "Extends the review HTML with chat panel and live-reload for serve mode"
+    },
+    {
+      "id": "StopHook",
+      "type": "config",
+      "files": [".claude/settings.json"],
+      "description": "Claude Code Stop hook — triggers local review server after agent makes changes"
+    },
+    {
+      "id": "ServeScript",
+      "type": "script",
+      "files": ["scripts/serve-review.sh"],
+      "description": "Ensures differ serve is running on an available port and prints the review URL"
     }
   ],
   "edges": [
@@ -64,6 +76,8 @@
     { "from": "CIWorkflow", "to": "CLI", "type": "calls", "description": "runs differ review in CI" },
     { "from": "Server", "to": "RenderServe", "type": "calls", "description": "generates HTML with chat panel" },
     { "from": "Server", "to": "ChatAgent", "type": "calls", "description": "forwards chat messages to Claude CLI" },
-    { "from": "RenderServe", "to": "Renderer", "type": "depends", "description": "wraps base review HTML with chat UI" }
+    { "from": "RenderServe", "to": "Renderer", "type": "depends", "description": "wraps base review HTML with chat UI" },
+    { "from": "StopHook", "to": "ServeScript", "type": "calls", "description": "hook invokes serve-review.sh when changes detected" },
+    { "from": "ServeScript", "to": "CLI", "type": "calls", "description": "starts differ serve on available port" }
   ]
 }

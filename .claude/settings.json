@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f topology.json ] && [ -f SYSTEM_DELTA.json ] && [ -n \"$(git status --porcelain)\" ]; then bash scripts/serve-review.sh; fi",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

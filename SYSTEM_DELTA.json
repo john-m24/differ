@@ -1,43 +1,48 @@
 {
-  "intent": "Redesign the review UX — summary view with inline code diffs, clean minimal theme, remove clutter",
+  "intent": "Persist PR reviews with rich markdown summary in PR comments + local review hook for dogfooding",
   "intent_satisfied": true,
   "changed": [
     {
-      "id": "Renderer",
-      "summary": "Complete rewrite — summary-first layout with expandable node cards containing inline diffs, new minimal theme",
-      "before": "Graph-first layout with side panel, neon dark theme, 'Intent satisfied' badge",
+      "id": "CIWorkflow",
+      "summary": "PR comment now includes rich markdown summary extracted from SYSTEM_DELTA.json (intent, changes, blast radius, decisions, scope violations) with download link",
+      "before": "Simple comment linking to workflow artifact download",
       "structural_changes": [
-        "added: renderSummaryView with expandable node cards",
-        "added: CSS variables for clean theme system",
-        "added: tab switching (Summary/Graph)",
-        "modified: graph initialization deferred until tab click",
-        "removed: intent-satisfied badge",
-        "removed: legend (replaced by filter buttons)"
+        "added: reads SYSTEM_DELTA.json and builds structured markdown body",
+        "added: sections for Changes, Added, Removed, Blast Radius, Key Decisions, Scope Violations",
+        "modified: comment body from static string to dynamic delta-driven content"
       ]
     }
   ],
-  "added": [],
+  "added": ["StopHook", "ServeScript"],
   "removed": [],
   "moved": [],
-  "edges_added": [],
+  "edges_added": [
+    { "from": "StopHook", "to": "ServeScript", "type": "calls", "description": "hook invokes serve-review.sh when changes detected" },
+    { "from": "ServeScript", "to": "CLI", "type": "calls", "description": "starts differ serve on available port" }
+  ],
   "edges_removed": [],
-  "blast_radius": ["RenderServe"],
+  "blast_radius": ["Server", "RenderServe"],
   "scope_violations": [],
   "decision_trace": [
     {
-      "decision": "Summary-first instead of graph-first landing",
-      "alternatives": ["Keep graph as primary view", "Side-by-side summary and graph"],
-      "rationale": "Reviewers need to understand the narrative before spatial relationships. The graph is a drill-down, not the starting point."
+      "decision": "Rich markdown summary in PR comment rather than just artifact link",
+      "alternatives": ["Keep artifact-only link", "Commit HTML to PR branch", "Host on external service"],
+      "rationale": "Markdown is immediately readable in the PR with zero setup. The interactive HTML stays as a downloadable artifact for deeper exploration."
     },
     {
-      "decision": "Inline code diffs inside expandable cards rather than a separate panel",
-      "alternatives": ["Keep the side panel for code", "Full-page code view on click"],
-      "rationale": "Code is part of the change story — it belongs inline with the context, not disconnected in a sidebar."
+      "decision": "Claude Code Stop hook for local review serving",
+      "alternatives": ["Git post-commit hook", "File watcher", "Manual command"],
+      "rationale": "Stop hook fires exactly when the agent finishes work. Conditional on dirty working tree so it only runs after actual changes, not planning."
     },
     {
-      "decision": "CSS variables for theming instead of hardcoded colors",
-      "alternatives": ["Keep inline colors", "Tailwind-style utility classes"],
-      "rationale": "Makes future theme changes trivial (light mode, custom themes). Single source of truth for the color system."
+      "decision": "Auto-find available port instead of fixed port",
+      "alternatives": ["Fixed port with error on conflict", "User-configured port"],
+      "rationale": "Multiple workspaces may run differ serve simultaneously. Scanning ports 3141-3200 avoids conflicts without config."
+    },
+    {
+      "decision": "Open-core architecture — free markdown + self-serve Pages, paid hosted service later",
+      "alternatives": ["Always require hosted service", "GitHub Pages only"],
+      "rationale": "Free tier drives adoption with zero setup. Hosted service (reviews.differ.dev) becomes the monetizable upgrade for private repos and teams."
     }
   ]
 }
