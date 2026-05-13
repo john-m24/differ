@@ -4,9 +4,17 @@
   "moved": [],
   "changed": [
     {
+      "id": "Types",
+      "summary": "Added nodes field to Decision interface to store topology node IDs shaped by each decision",
+      "before": "Decision interface included decision, alternatives, and rationale fields",
+      "structural_changes": [
+        "modified: Decision interface — added nodes: string[] field"
+      ]
+    },
+    {
       "id": "Analyze",
-      "summary": "Extended prompt and schema to require decision_trace items include a nodes array linking decisions to topology node IDs",
-      "before": "Prompt instructed agent to capture decision_trace; schema defined decision/alternatives/rationale fields only",
+      "summary": "Extended prompt to require decision_trace items include a nodes array linking decisions to topology node IDs",
+      "before": "Prompt instructed agent to capture decision_trace with decision/alternatives/rationale only",
       "structural_changes": [
         "modified: SYSTEM_PROMPT constant — added instruction requiring nodes array in decision_trace entries",
         "modified: SYSTEM_DELTA_SCHEMA.decision_trace.items — added required 'nodes' field (array of strings)"
@@ -14,36 +22,31 @@
     },
     {
       "id": "Renderer",
-      "summary": "Refactored review layout to render node cards nested under decision headers when nodes arrays present; falls back to flat layout otherwise",
-      "before": "Rendered changes as flat card list followed by separate decisions section; no structural grouping by decision",
+      "summary": "Refactored review layout to render node cards nested under decision headers when nodes arrays present",
+      "before": "Rendered changes as flat card list followed by separate decisions section with no structural grouping",
       "structural_changes": [
         "added: CSS rules for .decision-section, .decision-header, .decision-number, .decision-text, .decision-title, .decision-rationale, .decision-alternatives, .node-decision-links",
         "added: renderNodeCard() inline helper function",
         "added: nodeDecisionMap reverse index (nodeId -> decision labels)",
-        "added: claimedIds Set to track nodes assigned to decisions",
+        "added: topoNodeById and diffById lookup maps",
         "modified: main render flow — decision-section blocks with nested node cards when d.nodes present",
-        "modified: Changes section — conditionally titled 'Other Changes' when hasLinkedDecisions true",
-        "added: node-decision-links UI element for nodes shaped by multiple decisions"
-      ]
-    },
-    {
-      "id": "Types",
-      "summary": "Added nodes field to Decision interface to store topology node IDs shaped by each decision",
-      "before": "Decision interface included decision, alternatives, and rationale fields",
-      "structural_changes": [
-        "modified: Decision interface — added nodes: string[] field"
+        "modified: Changes section — conditionally titled 'Other Changes' for unclaimed nodes",
+        "added: node-decision-links UI element for nodes shaped by multiple decisions",
+        "removed: escapeHtml function declaration (kept inline as esc)",
+        "removed: separate decisions list rendering at bottom"
       ]
     }
   ],
   "blast_radius": [
     "CLI",
     "RenderServe",
-    "Init"
+    "AgentProtocol",
+    "StopHook"
   ],
   "edges_added": [],
   "edges_removed": [],
   "scope_violations": [],
-  "intent": "Decision-driven review UX — decisions as primary organizing structure with linked node cards",
+  "intent": "Link decisions to topology nodes via explicit schema field and reorganize review UI to present decisions as primary organizing structure",
   "intent_satisfied": true,
   "decision_trace": [
     {
@@ -55,8 +58,8 @@
       ],
       "rationale": "Explicit node IDs enable precise structural organization, validation against topology, and bidirectional navigation between decisions and affected components",
       "nodes": [
-        "Analyze",
-        "Types"
+        "Types",
+        "Analyze"
       ]
     },
     {
@@ -72,13 +75,25 @@
       ]
     },
     {
-      "decision": "Backward-compatible fallback to flat layout when decisions lack node links",
+      "decision": "Build reverse index nodeDecisionMap to support nodes appearing under multiple decisions",
       "alternatives": [
-        "Require all existing deltas to be regenerated with nodes arrays",
-        "Ignore unlinked decisions entirely",
-        "Always use decision-first layout with empty sections"
+        "Duplicate node cards under each decision",
+        "Restrict each node to single decision",
+        "Show nodes only once under first decision"
       ],
-      "rationale": "Conditional rendering based on hasLinkedDecisions enables incremental adoption without breaking existing review artifacts or forcing full regeneration",
+      "rationale": "Reverse mapping allows efficient lookup while preserving many-to-many relationship; UI displays primary decision placement with 'Also shaped by' hints for cross-cutting concerns",
+      "nodes": [
+        "Renderer"
+      ]
+    },
+    {
+      "decision": "Partition nodes into decision-driven sections and 'Other Changes' fallback",
+      "alternatives": [
+        "Force all nodes into decisions even for trivial changes",
+        "Show all nodes in flat list with decision metadata inline",
+        "Hide nodes not linked to decisions"
+      ],
+      "rationale": "Unclaimed nodes represent mechanical changes without architectural significance; segregating them preserves clarity of decision narrative while maintaining completeness",
       "nodes": [
         "Renderer"
       ]
