@@ -50,3 +50,25 @@ export interface SystemDelta {
   scope_violations: string[];
   decision_trace: Decision[];
 }
+
+export interface TimelineNodeStat {
+  id: string;
+  filesChanged: number;
+  linesAdded: number;
+  linesRemoved: number;
+  files: string[];
+}
+
+export interface TimelineEntry {
+  timestamp: string;
+  base: string;
+  nodes: TimelineNodeStat[];
+  incremental: TimelineNodeStat[];
+  commitsBefore?: string[];
+  unexpected?: string[];
+}
+
+export interface Timeline {
+  sessionStart: string;
+  entries: TimelineEntry[];
+}

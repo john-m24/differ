@@ -11,20 +11,30 @@ export interface NodeDiff {
   files: FileHunk[];
 }
 
-export function captureDiff(base: string, cwd: string): FileHunk[] {
+export function captureDiff(base: string, cwd: string, opts?: { includeWorktree?: boolean }): FileHunk[] {
   let raw = "";
-  // Try committed changes first (three-dot: base...HEAD)
-  try {
-    raw = execSync(`git diff ${base}...HEAD`, { cwd, encoding: "utf-8", maxBuffer: 10 * 1024 * 1024 });
-  } catch {
-    // ignore
-  }
-  // If no committed diff, try including working tree changes (two-dot: base)
-  if (!raw.trim()) {
+
+  if (opts?.includeWorktree) {
+    // Two-dot: shows all changes from base to working tree (committed + uncommitted)
     try {
       raw = execSync(`git diff ${base}`, { cwd, encoding: "utf-8", maxBuffer: 10 * 1024 * 1024 });
     } catch {
       return [];
+    }
+  } else {
+    // Try committed changes first (three-dot: base...HEAD)
+    try {
+      raw = execSync(`git diff ${base}...HEAD`, { cwd, encoding: "utf-8", maxBuffer: 10 * 1024 * 1024 });
+    } catch {
+      // ignore
+    }
+    // If no committed diff, try including working tree changes (two-dot: base)
+    if (!raw.trim()) {
+      try {
+        raw = execSync(`git diff ${base}`, { cwd, encoding: "utf-8", maxBuffer: 10 * 1024 * 1024 });
+      } catch {
+        return [];
+      }
     }
   }
 
@@ -69,6 +79,10 @@ export function mapDiffsToNodes(fileDiffs: FileHunk[], topology: Topology): Node
   }
 
   return nodeDiffs;
+}
+
+export function fileMatchesTopology(file: string, topology: Topology): boolean {
+  return topology.nodes.some((node) => fileMatchesPatterns(file, node.files));
 }
 
 function fileMatchesPatterns(file: string, patterns: string[]): boolean {

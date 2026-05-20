@@ -1,101 +1,96 @@
 {
-  "added": [],
+  "added": [
+    "WatchServer"
+  ],
   "removed": [],
   "moved": [],
   "changed": [
     {
+      "id": "CLI",
+      "summary": "Added watch command for continuous monitoring of source files with configurable debouncing and session management",
+      "before": "Provided review, serve, analyze, and init commands for static topology operations",
+      "structural_changes": [
+        "Added import: startWatchServer from watch-server module",
+        "Added command: watch with topology, delta, base, port, debounce, and fresh options"
+      ]
+    },
+    {
       "id": "Types",
-      "summary": "Added nodes field to Decision interface to store topology node IDs shaped by each decision",
-      "before": "Decision interface included decision, alternatives, and rationale fields",
+      "summary": "Introduced timeline data structures to track per-node change statistics across time",
+      "before": "Defined Topology and SystemDelta schemas for single-point analysis",
       "structural_changes": [
-        "modified: Decision interface — added nodes: string[] field"
-      ]
-    },
-    {
-      "id": "Analyze",
-      "summary": "Extended prompt to require decision_trace items include a nodes array linking decisions to topology node IDs",
-      "before": "Prompt instructed agent to capture decision_trace with decision/alternatives/rationale only",
-      "structural_changes": [
-        "modified: SYSTEM_PROMPT constant — added instruction requiring nodes array in decision_trace entries",
-        "modified: SYSTEM_DELTA_SCHEMA.decision_trace.items — added required 'nodes' field (array of strings)"
-      ]
-    },
-    {
-      "id": "Renderer",
-      "summary": "Refactored review layout to render node cards nested under decision headers when nodes arrays present",
-      "before": "Rendered changes as flat card list followed by separate decisions section with no structural grouping",
-      "structural_changes": [
-        "added: CSS rules for .decision-section, .decision-header, .decision-number, .decision-text, .decision-title, .decision-rationale, .decision-alternatives, .node-decision-links",
-        "added: renderNodeCard() inline helper function",
-        "added: nodeDecisionMap reverse index (nodeId -> decision labels)",
-        "added: topoNodeById and diffById lookup maps",
-        "modified: main render flow — decision-section blocks with nested node cards when d.nodes present",
-        "modified: Changes section — conditionally titled 'Other Changes' for unclaimed nodes",
-        "added: node-decision-links UI element for nodes shaped by multiple decisions",
-        "removed: escapeHtml function declaration (kept inline as esc)",
-        "removed: separate decisions list rendering at bottom"
+        "Added type: TimelineNodeStat (tracks filesChanged, linesAdded, linesRemoved, files per node)",
+        "Added type: TimelineEntry (timestamp, base ref, nodes array)",
+        "Added type: Timeline (sessionStart, entries array)"
       ]
     }
   ],
-  "blast_radius": [
-    "CLI",
-    "RenderServe",
-    "AgentProtocol",
-    "StopHook"
+  "edges_added": [
+    {
+      "from": "CLI",
+      "to": "WatchServer",
+      "type": "calls",
+      "description": "watch command invokes startWatchServer()"
+    }
   ],
-  "edges_added": [],
   "edges_removed": [],
+  "blast_radius": [
+    "CIWorkflow",
+    "StopHook",
+    "ServeScript",
+    "Renderer",
+    "Init",
+    "Analyze"
+  ],
   "scope_violations": [],
-  "intent": "Link decisions to topology nodes via explicit schema field and reorganize review UI to present decisions as primary organizing structure",
+  "intent": "Add live file watching mode that tracks structural changes over time in a timeline view",
   "intent_satisfied": true,
   "decision_trace": [
     {
-      "decision": "Bind decisions to topology nodes via explicit nodes array in schema",
+      "decision": "Add watch mode as separate command rather than extending serve",
       "alternatives": [
-        "Infer node associations from file paths in diff",
-        "Use free-text node references in rationale",
-        "No linking mechanism"
+        "Add --watch flag to existing serve command",
+        "Create unified dev mode combining serve and watch"
       ],
-      "rationale": "Explicit node IDs enable precise structural organization, validation against topology, and bidirectional navigation between decisions and affected components",
+      "rationale": "Watch mode focuses on timeline tracking of structural changes while serve mode focuses on interactive editing. Separation maintains clear boundaries and allows independent evolution.",
       "nodes": [
-        "Types",
-        "Analyze"
+        "CLI",
+        "WatchServer"
       ]
     },
     {
-      "decision": "Decisions as primary organizing sections in review UI",
+      "decision": "Model timeline as session with entries rather than flat log",
       "alternatives": [
-        "Keep decisions in separate metadata panel at bottom",
-        "Inline decisions as tags/badges on node cards",
-        "Show decisions in sidebar with click-to-highlight"
+        "Single flat array of change events",
+        "Stateless stream without persistence"
       ],
-      "rationale": "Elevating decisions to top-level sections creates narrative flow where architectural choices drive the presentation of code changes, reducing cognitive load and surfacing intent first",
+      "rationale": "Session-based timeline preserves context across restarts and enables pattern analysis over time. The fresh flag allows starting new sessions while retaining historical data.",
       "nodes": [
-        "Renderer"
+        "Types"
       ]
     },
     {
-      "decision": "Build reverse index nodeDecisionMap to support nodes appearing under multiple decisions",
+      "decision": "Make debounce interval configurable via command option",
       "alternatives": [
-        "Duplicate node cards under each decision",
-        "Restrict each node to single decision",
-        "Show nodes only once under first decision"
+        "Immediate analysis on every file change",
+        "Fixed hardcoded debounce interval"
       ],
-      "rationale": "Reverse mapping allows efficient lookup while preserving many-to-many relationship; UI displays primary decision placement with 'Also shaped by' hints for cross-cutting concerns",
+      "rationale": "Configurable debouncing (default 1500ms) batches rapid successive edits into single timeline entries, reducing noise and analysis overhead while staying responsive.",
       "nodes": [
-        "Renderer"
+        "CLI",
+        "WatchServer"
       ]
     },
     {
-      "decision": "Partition nodes into decision-driven sections and 'Other Changes' fallback",
+      "decision": "Track statistics per topology node rather than per file",
       "alternatives": [
-        "Force all nodes into decisions even for trivial changes",
-        "Show all nodes in flat list with decision metadata inline",
-        "Hide nodes not linked to decisions"
+        "Track raw file-level changes",
+        "Track function-level granular changes",
+        "Track git commit history"
       ],
-      "rationale": "Unclaimed nodes represent mechanical changes without architectural significance; segregating them preserves clarity of decision narrative while maintaining completeness",
+      "rationale": "Node-level aggregation aligns with architectural viewpoint and identifies which system components are actively evolving, abstracting away file-level implementation details.",
       "nodes": [
-        "Renderer"
+        "Types"
       ]
     }
   ]
