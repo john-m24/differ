@@ -1,9 +1,9 @@
-import type { Topology, SystemDelta } from "./types.js";
+import type { Topology, SystemDelta, CommitInfo } from "./types.js";
 import type { NodeDiff } from "./diff.js";
 import { renderReview } from "./render.js";
 
-export function renderServeView(topology: Topology, delta: SystemDelta, nodeDiffs?: NodeDiff[]): string {
-  const base = renderReview(topology, delta, nodeDiffs);
+export function renderServeView(topology: Topology, delta: SystemDelta, nodeDiffs?: NodeDiff[], commits?: CommitInfo[]): string {
+  const base = renderReview(topology, delta, nodeDiffs, commits);
 
   // Inject chat panel and live-reload script before closing </body>
   const injection = `

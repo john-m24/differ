@@ -50,3 +50,17 @@ export interface SystemDelta {
   scope_violations: string[];
   decision_trace: Decision[];
 }
+
+export interface CommitFile {
+  path: string;
+  status: "A" | "D" | "M" | "R";
+}
+
+export interface CommitInfo {
+  hash: string;
+  shortHash: string;
+  message: string;
+  author: string;
+  date: string;
+  files: CommitFile[];
+}

@@ -3,7 +3,7 @@ import { serve } from "@hono/node-server";
 import { readFileSync, writeFileSync, watchFile } from "node:fs";
 import { resolve } from "node:path";
 import { renderServeView } from "./render-serve.js";
-import { captureDiff, mapDiffsToNodes } from "./diff.js";
+import { captureDiff, captureCommits, mapDiffsToNodes } from "./diff.js";
 import { chatWithAgent } from "./chat-agent.js";
 import type { Topology, SystemDelta } from "./types.js";
 
@@ -23,7 +23,8 @@ export function startServer(opts: ServeOptions) {
     const delta: SystemDelta = JSON.parse(readFileSync(opts.deltaPath, "utf-8"));
     const fileDiffs = captureDiff(opts.base, process.cwd());
     const nodeDiffs = fileDiffs.length > 0 ? mapDiffsToNodes(fileDiffs, topology) : [];
-    return { topology, delta, nodeDiffs };
+    const commits = captureCommits(opts.base, process.cwd());
+    return { topology, delta, nodeDiffs, commits };
   }
 
   // SSE endpoint for live reload
@@ -103,7 +104,7 @@ export function startServer(opts: ServeOptions) {
   // Serve the interactive review page with chat UI
   app.get("/", (c) => {
     const state = loadState();
-    const html = renderServeView(state.topology, state.delta, state.nodeDiffs);
+    const html = renderServeView(state.topology, state.delta, state.nodeDiffs, state.commits);
     return c.html(html);
   });
 

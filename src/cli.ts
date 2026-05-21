@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { renderReview } from "./render.js";
 import { initTopology } from "./init.js";
-import { captureDiff, mapDiffsToNodes } from "./diff.js";
+import { captureDiff, captureCommits, mapDiffsToNodes } from "./diff.js";
 import { analyzeDiff, buildPrompt } from "./analyze.js";
 import { startServer } from "./server.js";
 import type { Topology, SystemDelta } from "./types.js";
@@ -30,15 +30,20 @@ program
     const delta: SystemDelta = JSON.parse(readFileSync(deltaPath, "utf-8"));
 
     let nodeDiffs = undefined;
+    let commits = undefined;
     if (opts.diff !== false) {
       const fileDiffs = captureDiff(opts.base, process.cwd());
+      commits = captureCommits(opts.base, process.cwd());
       if (fileDiffs.length > 0) {
         nodeDiffs = mapDiffsToNodes(fileDiffs, topology);
         console.log(`Captured diff: ${fileDiffs.length} file(s) mapped to ${nodeDiffs.length} node(s)`);
       }
+      if (commits.length > 0) {
+        console.log(`Captured ${commits.length} commit(s)`);
+      }
     }
 
-    const html = renderReview(topology, delta, nodeDiffs);
+    const html = renderReview(topology, delta, nodeDiffs, commits);
     writeFileSync(outputPath, html);
 
     console.log(`Review written to ${outputPath}`);
