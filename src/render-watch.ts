@@ -1,6 +1,7 @@
 import type { Topology, SystemDelta, Timeline } from "./types.js";
 import type { NodeDiff } from "./diff.js";
 import { renderReview } from "./render.js";
+import { NODE_PANEL_CSS, NODE_PANEL_JS } from "./render-node-panel.js";
 
 export function renderWatchView(
   topology: Topology,
@@ -29,7 +30,7 @@ function injectTimeline(html: string, topology: Topology, delta: SystemDelta | n
   const topoData = JSON.stringify(topology);
   const deltaData = JSON.stringify(delta);
 
-  const injection = `<style>${TIMELINE_CSS}</style>\n<script>\nconst TIMELINE_DATA = ${timelineData};\nconst TOPO = ${topoData};\nconst DELTA_STATE = ${deltaData};\n${TIMELINE_JS}\n</script>`;
+  const injection = `<style>${TIMELINE_CSS}\n${NODE_PANEL_CSS}</style>\n<div id="node-panel-overlay" class="node-panel-overlay"></div>\n<script>\nconst TIMELINE_DATA = ${timelineData};\nconst TOPO = ${topoData};\nconst DELTA_STATE = ${deltaData};\n${TIMELINE_JS}\n${NODE_PANEL_JS}\n</script>`;
   html = html.replace("</body>", injection + "\n</body>");
 
   return html;
@@ -49,6 +50,7 @@ function renderTimelineOnly(topology: Topology, delta: SystemDelta | null, timel
 <style>
 ${BASE_CSS}
 ${TIMELINE_CSS}
+${NODE_PANEL_CSS}
 </style>
 </head>
 <body>
@@ -62,12 +64,14 @@ ${TIMELINE_CSS}
 
   <main class="view active" id="view-timeline"></main>
 </div>
+<div id="node-panel-overlay" class="node-panel-overlay"></div>
 <script>
 const TOPO = ${topoData};
 const DELTA_STATE = ${deltaData};
 const TIMELINE_DATA = ${timelineData};
 ${TIMELINE_JS}
 ${TAB_JS}
+${NODE_PANEL_JS}
 </script>
 </body>
 </html>`;
@@ -234,7 +238,7 @@ const TIMELINE_JS = `
       else if (pct > 60) heatColor = "var(--accent-yellow)";
       else if (pct > 0) heatColor = "var(--accent-green)";
 
-      h += '<div class="' + cls + '">';
+      h += '<div class="' + cls + '" onclick="openNodePanel(\\'' + node.id + '\\')" style="cursor:pointer">';
       h += '<span class="activity-node-name">' + node.id + '</span>';
       h += '<div class="activity-node-heat"><div class="activity-node-heat-bar" style="width:' + pct + '%;background:' + heatColor + '"></div></div>';
       h += '</div>';
@@ -266,7 +270,7 @@ const TIMELINE_JS = `
       h += '<div class="timeline-entry-nodes">';
       for (const node of inc) {
         const isU = hasUnexpected && entry.unexpected.includes(node.id);
-        h += '<div class="timeline-node' + (isU ? ' unexpected' : '') + '">';
+        h += '<div class="timeline-node' + (isU ? ' unexpected' : '') + '" onclick="openNodePanel(\\'' + node.id + '\\')" style="cursor:pointer">';
         h += '<span class="timeline-node-name">' + node.id + '</span>';
         h += '<span class="timeline-node-stats">';
         if (node.linesAdded > 0) h += '<span class="add">+' + node.linesAdded + '</span>';

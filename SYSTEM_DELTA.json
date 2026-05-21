@@ -20,7 +20,7 @@
       "before": "Defined Topology and SystemDelta schemas for single-point analysis",
       "structural_changes": [
         "Added type: TimelineNodeStat (tracks filesChanged, linesAdded, linesRemoved, files per node)",
-        "Added type: TimelineEntry (timestamp, base ref, nodes array)",
+        "Added type: TimelineEntry (timestamp, base ref, nodes array, incremental changes, commits, unexpected nodes)",
         "Added type: Timeline (sessionStart, entries array)"
       ]
     }

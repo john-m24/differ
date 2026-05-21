@@ -431,20 +431,24 @@ const SCRIPT = `
   function selectGraphNode(id) {
     document.querySelectorAll(".node").forEach(g=>g.classList.remove("selected"));
     const el=document.querySelector('.node[data-node-id="'+id+'"]');if(el)el.classList.add("selected");
-    const panel=document.getElementById("panel");
-    const ci=delta.changed.find(c=>c.id===id);
-    const tn=topology.nodes.find(n=>n.id===id);
-    const nd=nodeDiffs.find(d=>d.nodeId===id);
-    const st=getStatus(id);
-    let h='<button data-action="toggle-expand" style="position:absolute;top:8px;right:8px;background:var(--surface);border:1px solid var(--border);color:var(--text-tertiary);width:24px;height:24px;border-radius:4px;cursor:pointer;font-size:12px">&harr;</button>';
-    h+='<h3 style="margin-bottom:4px">'+esc(id)+'</h3>';
-    h+='<span class="node-badge '+st+'" style="margin-bottom:8px;display:inline-block">'+st+'</span>';
-    if(tn)h+='<p style="color:var(--text-secondary);font-size:12px;margin-top:8px">'+esc(tn.description)+'</p>';
-    if(ci){h+='<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)"><h4 style="font-size:11px;color:var(--text-tertiary);margin-bottom:4px">CHANGE</h4><p style="font-size:13px">'+esc(ci.summary)+'</p></div>';}
-    if(nd&&nd.files.length>0){h+='<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)"><h4 style="font-size:11px;color:var(--text-tertiary);margin-bottom:6px">CODE</h4>';
-      nd.files.forEach(f=>{h+='<div class="code-file"><div class="code-file-header">'+esc(f.file)+'</div><div class="code-diff">'+renderDiffHtml(f.hunks)+'</div></div>';});
-      h+='</div>';}
-    panel.innerHTML=h;
+    if (typeof window.openNodePanel === "function") {
+      window.openNodePanel(id);
+    } else {
+      // Fallback for standalone review (no watch server)
+      const panel=document.getElementById("panel");
+      const ci=delta.changed.find(c=>c.id===id);
+      const tn=topology.nodes.find(n=>n.id===id);
+      const nd=nodeDiffs.find(d=>d.nodeId===id);
+      const st=getStatus(id);
+      let h='<h3 style="margin-bottom:4px">'+esc(id)+'</h3>';
+      h+='<span class="node-badge '+st+'" style="margin-bottom:8px;display:inline-block">'+st+'</span>';
+      if(tn)h+='<p style="color:var(--text-secondary);font-size:12px;margin-top:8px">'+esc(tn.description)+'</p>';
+      if(ci){h+='<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)"><h4 style="font-size:11px;color:var(--text-tertiary);margin-bottom:4px">CHANGE</h4><p style="font-size:13px">'+esc(ci.summary)+'</p></div>';}
+      if(nd&&nd.files.length>0){h+='<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)"><h4 style="font-size:11px;color:var(--text-tertiary);margin-bottom:6px">CODE</h4>';
+        nd.files.forEach(f=>{h+='<div class="code-file"><div class="code-file-header">'+esc(f.file)+'</div><div class="code-diff">'+renderDiffHtml(f.hunks)+'</div></div>';});
+        h+='</div>';}
+      panel.innerHTML=h;
+    }
   }
 
   const activeFilters=new Set(["changed","added","removed","blast-radius"]);
