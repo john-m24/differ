@@ -43,13 +43,13 @@ function buildNodePrompt(message: string, ctx: NodeAgentContext): string {
   if (ctx.edges.outgoing.length > 0) {
     prompt += `This node depends on / calls:\n`;
     for (const e of ctx.edges.outgoing) {
-      prompt += `- ${e.type} ${e.to}${e.description ? `: "${e.description}"` : ""}\n`;
+      prompt += `- → ${e.to} (weight: ${e.weight})\n`;
     }
   }
   if (ctx.edges.incoming.length > 0) {
     prompt += `Other nodes that depend on / call this:\n`;
     for (const e of ctx.edges.incoming) {
-      prompt += `- ${e.from} ${e.type} this${e.description ? `: "${e.description}"` : ""}\n`;
+      prompt += `- ${e.from} → this (weight: ${e.weight})\n`;
     }
   }
   if (ctx.edges.outgoing.length === 0 && ctx.edges.incoming.length === 0) {

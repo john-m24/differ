@@ -8,11 +8,10 @@ import { computeNodeStats, computeIncremental } from "./diff-stats.js";
 import { loadTimeline, appendEntry, resetTimeline } from "./timeline.js";
 import { startWatcher } from "./watcher.js";
 import { chatWithNodeAgent } from "./node-agent.js";
+import { computeTopology } from "./topology.js";
 import type { Topology, SystemDelta, TimelineEntry, TimelineNodeStat } from "./types.js";
 
 export interface WatchOptions {
-  topologyPath: string;
-  deltaPath: string;
   base: string;
   port: number;
   debounceMs: number;
@@ -30,16 +29,11 @@ export function startWatchServer(opts: WatchOptions) {
   let lastCommitHash = getCurrentCommit(cwd);
 
   function loadTopology(): Topology {
-    return JSON.parse(readFileSync(opts.topologyPath, "utf-8"));
+    return computeTopology(cwd);
   }
 
   function loadDelta(): SystemDelta | null {
-    if (!existsSync(opts.deltaPath)) return null;
-    try {
-      return JSON.parse(readFileSync(opts.deltaPath, "utf-8"));
-    } catch {
-      return null;
-    }
+    return null;
   }
 
   function getExpectedNodes(delta: SystemDelta | null): Set<string> {

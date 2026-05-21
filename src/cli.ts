@@ -2,142 +2,87 @@ import { program } from "commander";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { renderReview } from "./render.js";
-import { initTopology } from "./init.js";
 import { captureDiff, captureCommits, mapDiffsToNodes } from "./diff.js";
-import { analyzeDiff, buildPrompt } from "./analyze.js";
 import { startServer } from "./server.js";
 import { startWatchServer } from "./watch-server.js";
-import { runPersonalMode, promoteTopology } from "./personal.js";
+import { runHistory } from "./history.js";
+import { computeTopology } from "./topology.js";
 import type { Topology, SystemDelta } from "./types.js";
+
+const EMPTY_DELTA: SystemDelta = {
+  intent: "",
+  intent_satisfied: true,
+  changed: [],
+  added: [],
+  removed: [],
+  moved: [],
+  edges_added: [],
+  edges_removed: [],
+  blast_radius: [],
+  scope_violations: [],
+  decision_trace: [],
+};
 
 program
   .name("differ")
-  .description("Systems-level code review — topology first, code second")
-  .version("0.1.0");
+  .description("Architecture monitoring — watch how your system evolves")
+  .version("0.2.0");
 
 program
   .command("review")
-  .description("Generate an interactive review from topology + delta")
-  .option("-t, --topology <path>", "path to topology.json", "topology.json")
-  .option("-d, --delta <path>", "path to SYSTEM_DELTA.json", "SYSTEM_DELTA.json")
+  .description("Generate an interactive diff review")
   .option("-o, --output <path>", "output HTML file", "review.html")
   .option("-b, --base <ref>", "git base ref for diff", "origin/main")
-  .option("--no-diff", "skip git diff capture")
+  .option("-d, --delta <path>", "path to SYSTEM_DELTA.json (optional)")
   .action((opts) => {
-    const topologyPath = resolve(opts.topology);
-    const deltaPath = resolve(opts.delta);
+    const cwd = process.cwd();
     const outputPath = resolve(opts.output);
+    const topology = computeTopology(cwd);
 
-    const topology: Topology = JSON.parse(readFileSync(topologyPath, "utf-8"));
-    const delta: SystemDelta = JSON.parse(readFileSync(deltaPath, "utf-8"));
+    let delta = EMPTY_DELTA;
+    if (opts.delta && existsSync(resolve(opts.delta))) {
+      delta = JSON.parse(readFileSync(resolve(opts.delta), "utf-8"));
+    }
 
-    let nodeDiffs = undefined;
-    let commits = undefined;
-    if (opts.diff !== false) {
-      const fileDiffs = captureDiff(opts.base, process.cwd());
-      commits = captureCommits(opts.base, process.cwd());
-      if (fileDiffs.length > 0) {
-        nodeDiffs = mapDiffsToNodes(fileDiffs, topology);
-        console.log(`Captured diff: ${fileDiffs.length} file(s) mapped to ${nodeDiffs.length} node(s)`);
-      }
-      if (commits.length > 0) {
-        console.log(`Captured ${commits.length} commit(s)`);
-      }
+    const fileDiffs = captureDiff(opts.base, cwd);
+    const commits = captureCommits(opts.base, cwd);
+    const nodeDiffs = fileDiffs.length > 0 ? mapDiffsToNodes(fileDiffs, topology) : [];
+
+    if (fileDiffs.length > 0) {
+      console.log(`Captured diff: ${fileDiffs.length} file(s) mapped to ${nodeDiffs.length} node(s)`);
+    }
+    if (commits.length > 0) {
+      console.log(`Captured ${commits.length} commit(s)`);
     }
 
     const html = renderReview(topology, delta, nodeDiffs, commits);
     writeFileSync(outputPath, html);
-
     console.log(`Review written to ${outputPath}`);
   });
 
 program
   .command("serve")
-  .description("Start a local server with live topology editing via chat")
-  .option("-t, --topology <path>", "path to topology.json", "topology.json")
-  .option("-d, --delta <path>", "path to SYSTEM_DELTA.json", "SYSTEM_DELTA.json")
+  .description("Start a local server with live diff view")
   .option("-b, --base <ref>", "git base ref for diff", "origin/main")
+  .option("-d, --delta <path>", "path to SYSTEM_DELTA.json (optional)")
   .option("-p, --port <port>", "port to serve on", "3141")
   .action((opts) => {
     startServer({
-      topologyPath: resolve(opts.topology),
-      deltaPath: resolve(opts.delta),
+      deltaPath: opts.delta ? resolve(opts.delta) : undefined,
       base: opts.base,
       port: parseInt(opts.port),
     });
   });
 
 program
-  .command("analyze")
-  .description("Generate SYSTEM_DELTA.json from git diff using Claude")
-  .option("-t, --topology <path>", "path to topology.json", "topology.json")
-  .option("-o, --output <path>", "output SYSTEM_DELTA.json path", "SYSTEM_DELTA.json")
-  .option("-b, --base <ref>", "git base ref for diff", "origin/main")
-  .option("-i, --intent <text>", "hint about what the changes achieve")
-  .option("-m, --model <model>", "Claude model to use", "sonnet")
-  .option("--verbose", "print prompt and raw response")
-  .option("--dry-run", "print prompt without calling Claude")
-  .action((opts) => {
-    const topologyPath = resolve(opts.topology);
-    const outputPath = resolve(opts.output);
-
-    const fileDiffs = captureDiff(opts.base, process.cwd());
-    if (fileDiffs.length === 0) {
-      console.log("No changes to analyze.");
-      return;
-    }
-
-    let topology: Topology | null = null;
-    let nodeDiffs: ReturnType<typeof mapDiffsToNodes> | null = null;
-
-    if (existsSync(topologyPath)) {
-      topology = JSON.parse(readFileSync(topologyPath, "utf-8"));
-      nodeDiffs = mapDiffsToNodes(fileDiffs, topology!);
-      console.log(
-        `Diff: ${fileDiffs.length} file(s) mapped to ${nodeDiffs.length} node(s)`
-      );
-    } else {
-      console.log("No topology.json found — analyzing diff without node mapping.");
-    }
-
-    if (opts.dryRun) {
-      const prompt = buildPrompt({
-        fileDiffs,
-        nodeDiffs,
-        topology,
-        intent: opts.intent,
-      });
-      console.log(prompt);
-      return;
-    }
-
-    console.log("Analyzing with Claude...");
-    const delta = analyzeDiff({
-      fileDiffs,
-      nodeDiffs,
-      topology,
-      intent: opts.intent,
-      model: opts.model,
-      verbose: opts.verbose,
-    });
-
-    writeFileSync(outputPath, JSON.stringify(delta, null, 2) + "\n");
-    console.log(`Analysis written to ${outputPath}`);
-  });
-
-program
   .command("watch")
   .description("Watch source files and show live structural activity")
-  .option("-t, --topology <path>", "path to topology.json", "topology.json")
-  .option("-d, --delta <path>", "path to SYSTEM_DELTA.json", "SYSTEM_DELTA.json")
   .option("-b, --base <ref>", "git base ref for diff", "origin/main")
   .option("-p, --port <port>", "port to serve on", "3141")
   .option("--debounce <ms>", "debounce delay in ms", "1500")
   .option("--fresh", "start a fresh timeline session")
   .action((opts) => {
     startWatchServer({
-      topologyPath: resolve(opts.topology),
-      deltaPath: resolve(opts.delta),
       base: opts.base,
       port: parseInt(opts.port),
       debounceMs: parseInt(opts.debounce),
@@ -146,26 +91,21 @@ program
   });
 
 program
-  .command("init")
-  .description("Scaffold a topology.json by detecting repo structure")
-  .option("-d, --dir <path>", "directory to scan", ".")
-  .option("-o, --output <path>", "output file path", "topology.json")
-  .option("--promote", "promote .differ/topology.json to repo root")
+  .command("history")
+  .description("Query the timeline database")
+  .option("-n, --node <id>", "filter to a specific node")
+  .option("-d, --days <n>", "look back N days", "30")
+  .option("--stats", "show aggregate statistics")
+  .option("--format <fmt>", "output format: table or json", "table")
+  .option("--limit <n>", "max results to show", "50")
   .action((opts) => {
-    if (opts.promote) {
-      promoteTopology(resolve(opts.dir || "."));
-    } else {
-      initTopology({ dir: resolve(opts.dir), output: resolve(opts.output) });
-    }
-  });
-
-program
-  .option("-b, --base <ref>", "git base ref", "HEAD~1")
-  .option("-p, --port <port>", "server port", "3141")
-  .option("-i, --intent <text>", "hint about what changed")
-  .option("-m, --model <model>", "Claude model", "sonnet")
-  .action((opts) => {
-    runPersonalMode(opts);
+    runHistory({
+      node: opts.node,
+      days: parseInt(opts.days),
+      stats: opts.stats || false,
+      format: opts.format,
+      limit: parseInt(opts.limit),
+    });
   });
 
 program.parse();

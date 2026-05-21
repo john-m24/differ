@@ -5,8 +5,7 @@ import type { NodeDiff } from "./diff.js";
 
 export interface LayoutNode {
   id: string;
-  type: string;
-  description: string;
+  path: string;
   status: string;
   x: number;
   y: number;
@@ -17,7 +16,7 @@ export interface LayoutNode {
 export interface LayoutEdge {
   source: string;
   target: string;
-  description: string;
+  weight: number;
   status: string;
   points: { x: number; y: number }[];
 }
@@ -101,8 +100,7 @@ export function computeLayout(
     const topoNode = topology.nodes.find((n) => n.id === id);
     layoutNodes.push({
       id,
-      type: topoNode?.type || "unknown",
-      description: topoNode?.description || "",
+      path: topoNode?.path || "",
       status: getStatus(id),
       x: node.x,
       y: node.y,
@@ -120,7 +118,7 @@ export function computeLayout(
     layoutEdges.push({
       source: e.from,
       target: e.to,
-      description: e.description || "",
+      weight: e.weight || 1,
       status: removedEdgeKeys.has(key) ? "removed" : addedEdgeKeys.has(key) ? "added" : "",
       points: edgeData.points || [],
     });

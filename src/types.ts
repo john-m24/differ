@@ -1,21 +1,5 @@
-export interface TopologyNode {
-  id: string;
-  type: string;
-  files: string[];
-  description: string;
-}
-
-export interface TopologyEdge {
-  from: string;
-  to: string;
-  type: "calls" | "depends" | "emits" | "subscribes";
-  description?: string;
-}
-
-export interface Topology {
-  nodes: TopologyNode[];
-  edges: TopologyEdge[];
-}
+export type { TopologyNode, TopologyEdge, Topology, TopologyConfig } from "./topology.js";
+export { computeTopology, fileToNodeId } from "./topology.js";
 
 export interface ChangedNode {
   id: string;
@@ -44,8 +28,8 @@ export interface SystemDelta {
   added: string[];
   removed: string[];
   moved: MovedItem[];
-  edges_added: TopologyEdge[];
-  edges_removed: TopologyEdge[];
+  edges_added: { from: string; to: string; weight: number }[];
+  edges_removed: { from: string; to: string; weight: number }[];
   blast_radius: string[];
   scope_violations: string[];
   decision_trace: Decision[];

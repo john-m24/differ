@@ -401,15 +401,6 @@ export const SCRIPT = `
         else path.style.markerEnd = "url(#arr)";
         g.appendChild(path);
 
-        if (e.description) {
-          const mid = e.points[Math.floor(e.points.length / 2)];
-          const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
-          label.setAttribute("x", mid.x);
-          label.setAttribute("y", mid.y - 8);
-          label.setAttribute("class", "elabel");
-          label.textContent = e.description;
-          g.appendChild(label);
-        }
       }
       svg.appendChild(g);
     });
@@ -429,17 +420,9 @@ export const SCRIPT = `
 
       const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
       text.setAttribute("class", "nlabel");
-      text.setAttribute("y", n.type ? "-3" : "0");
+      text.setAttribute("y", "0");
       text.textContent = n.id;
       g.appendChild(text);
-
-      if (n.type) {
-        const tp = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        tp.setAttribute("class", "ntype");
-        tp.setAttribute("y", "10");
-        tp.textContent = n.type;
-        g.appendChild(tp);
-      }
 
       g.addEventListener("click", () => {
         if (state.selectedNode === n.id) {

@@ -1,29 +1,48 @@
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
-import { readFileSync, writeFileSync, watchFile } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { renderServeView } from "./render-serve.js";
 import { captureDiff, captureCommits, mapDiffsToNodes } from "./diff.js";
-import { chatWithAgent } from "./chat-agent.js";
-import type { Topology, SystemDelta } from "./types.js";
+import { computeTopology } from "./topology.js";
+import type { SystemDelta } from "./types.js";
 
 export interface ServeOptions {
-  topologyPath: string;
-  deltaPath: string;
+  deltaPath?: string;
   base: string;
   port: number;
 }
+
+const EMPTY_DELTA: SystemDelta = {
+  intent: "",
+  intent_satisfied: true,
+  changed: [],
+  added: [],
+  removed: [],
+  moved: [],
+  edges_added: [],
+  edges_removed: [],
+  blast_radius: [],
+  scope_violations: [],
+  decision_trace: [],
+};
 
 export function startServer(opts: ServeOptions) {
   const app = new Hono();
   const clients: Set<WritableStreamDefaultWriter> = new Set();
 
   function loadState() {
-    const topology: Topology = JSON.parse(readFileSync(opts.topologyPath, "utf-8"));
-    const delta: SystemDelta = JSON.parse(readFileSync(opts.deltaPath, "utf-8"));
-    const fileDiffs = captureDiff(opts.base, process.cwd());
+    const cwd = process.cwd();
+    const topology = computeTopology(cwd);
+
+    let delta = EMPTY_DELTA;
+    if (opts.deltaPath && existsSync(opts.deltaPath)) {
+      delta = JSON.parse(readFileSync(opts.deltaPath, "utf-8"));
+    }
+
+    const fileDiffs = captureDiff(opts.base, cwd);
     const nodeDiffs = fileDiffs.length > 0 ? mapDiffsToNodes(fileDiffs, topology) : [];
-    const commits = captureCommits(opts.base, process.cwd());
+    const commits = captureCommits(opts.base, cwd);
     return { topology, delta, nodeDiffs, commits };
   }
 
@@ -58,50 +77,13 @@ export function startServer(opts: ServeOptions) {
     }
   }
 
-  // Watch files for changes
-  watchFile(opts.topologyPath, { interval: 500 }, notifyClients);
-  watchFile(opts.deltaPath, { interval: 500 }, notifyClients);
-
   // API: get current state
   app.get("/api/state", (c) => {
     const state = loadState();
     return c.json(state);
   });
 
-  // API: chat with agent
-  app.post("/api/chat", async (c) => {
-    const { message } = await c.req.json();
-    if (!message) return c.json({ error: "No message provided" }, 400);
-
-    try {
-      const { topology, delta } = loadState();
-      const response = chatWithAgent(message, topology, delta);
-      return c.json(response);
-    } catch (e: any) {
-      return c.json({ error: e.message }, 500);
-    }
-  });
-
-  // API: apply proposed changes
-  app.post("/api/apply", async (c) => {
-    const { changes } = await c.req.json();
-    if (!changes || !Array.isArray(changes)) {
-      return c.json({ error: "No changes provided" }, 400);
-    }
-
-    for (const change of changes) {
-      if (change.file === "topology.json") {
-        writeFileSync(opts.topologyPath, change.after + "\n");
-      } else if (change.file === "SYSTEM_DELTA.json") {
-        writeFileSync(opts.deltaPath, change.after + "\n");
-      }
-    }
-
-    notifyClients();
-    return c.json({ ok: true });
-  });
-
-  // Serve the interactive review page with chat UI
+  // Serve the interactive review page
   app.get("/", (c) => {
     const state = loadState();
     const html = renderServeView(state.topology, state.delta, state.nodeDiffs, state.commits);
