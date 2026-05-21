@@ -11,10 +11,17 @@ export interface NodeDiff {
   files: FileHunk[];
 }
 
-export function captureDiff(base: string, cwd: string, opts?: { includeWorktree?: boolean }): FileHunk[] {
+export function captureDiff(base: string, cwd: string, opts?: { includeWorktree?: boolean; ref?: string }): FileHunk[] {
   let raw = "";
 
-  if (opts?.includeWorktree) {
+  if (opts?.ref) {
+    // Diff a specific branch ref against base (committed only)
+    try {
+      raw = execSync(`git diff ${base}...${opts.ref}`, { cwd, encoding: "utf-8", maxBuffer: 10 * 1024 * 1024 });
+    } catch {
+      return [];
+    }
+  } else if (opts?.includeWorktree) {
     // Two-dot: shows all changes from base to working tree (committed + uncommitted)
     try {
       raw = execSync(`git diff ${base}`, { cwd, encoding: "utf-8", maxBuffer: 10 * 1024 * 1024 });

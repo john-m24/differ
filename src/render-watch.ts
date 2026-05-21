@@ -30,7 +30,13 @@ function injectTimeline(html: string, topology: Topology, delta: SystemDelta | n
   const topoData = JSON.stringify(topology);
   const deltaData = JSON.stringify(delta);
 
-  const injection = `<style>${TIMELINE_CSS}\n${NODE_PANEL_CSS}</style>\n<div id="node-panel-overlay" class="node-panel-overlay"></div>\n<script>\nconst TIMELINE_DATA = ${timelineData};\nconst TOPO = ${topoData};\nconst DELTA_STATE = ${deltaData};\n${TIMELINE_JS}\n${NODE_PANEL_JS}\n</script>`;
+  // Add branch switcher to header
+  html = html.replace(
+    "</nav>\n  </header>",
+    '</nav>\n    <div class="branch-switcher" id="branch-switcher"></div>\n  </header>'
+  );
+
+  const injection = `<style>${TIMELINE_CSS}\n${NODE_PANEL_CSS}\n.branch-switcher { margin-left: auto; display: flex; align-items: center; gap: 8px; }\n.branch-switcher select { background: var(--surface); border: 1px solid var(--border); color: var(--text-primary); padding: 5px 10px; border-radius: 5px; font-size: 12px; cursor: pointer; outline: none; max-width: 220px; }\n.branch-switcher select:focus { border-color: var(--accent-blue); }\n.branch-meta { font-size: 11px; color: var(--text-tertiary); }\n.branch-meta .commits { color: var(--accent-purple); }\n.branch-meta .nodes { color: var(--accent-yellow); }</style>\n<div id="node-panel-overlay" class="node-panel-overlay"></div>\n<script>\nconst TIMELINE_DATA = ${timelineData};\nconst TOPO = ${topoData};\nconst DELTA_STATE = ${deltaData};\n${TIMELINE_JS}\n${NODE_PANEL_JS}\n${BRANCH_JS}\n</script>`;
   html = html.replace("</body>", injection + "\n</body>");
 
   return html;
@@ -60,6 +66,7 @@ ${NODE_PANEL_CSS}
     <nav class="tabs">
       <button class="tab active" data-view="timeline">Timeline</button>
     </nav>
+    <div class="branch-switcher" id="branch-switcher"></div>
   </header>
 
   <main class="view active" id="view-timeline"></main>
@@ -72,6 +79,7 @@ const TIMELINE_DATA = ${timelineData};
 ${TIMELINE_JS}
 ${TAB_JS}
 ${NODE_PANEL_JS}
+${BRANCH_JS}
 </script>
 </body>
 </html>`;
@@ -103,6 +111,13 @@ header h1 { font-size: 15px; font-weight: 600; color: var(--text-secondary); let
 .tab { background: none; border: none; color: var(--text-tertiary); padding: 6px 12px; border-radius: 5px; cursor: pointer; font-size: 13px; font-weight: 500; }
 .tab:hover { color: var(--text-secondary); }
 .tab.active { background: var(--surface); color: var(--text-primary); }
+
+.branch-switcher { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.branch-switcher select { background: var(--surface); border: 1px solid var(--border); color: var(--text-primary); padding: 5px 10px; border-radius: 5px; font-size: 12px; cursor: pointer; outline: none; max-width: 220px; }
+.branch-switcher select:focus { border-color: var(--accent-blue); }
+.branch-meta { font-size: 11px; color: var(--text-tertiary); }
+.branch-meta .commits { color: var(--accent-purple); }
+.branch-meta .nodes { color: var(--accent-yellow); }
 
 .view { display: none; flex: 1; overflow: hidden; }
 .view.active { display: flex; flex-direction: column; }
@@ -330,4 +345,41 @@ document.querySelector(".tabs")?.addEventListener("click", function(e) {
   document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
   document.getElementById("view-" + tab.dataset.view).classList.add("active");
 });
+`;
+
+const BRANCH_JS = `
+(function() {
+  const container = document.getElementById("branch-switcher");
+  if (!container) return;
+
+  fetch("/api/branches")
+    .then(r => r.json())
+    .then(data => {
+      if (!data.branches || data.branches.length <= 1) {
+        container.innerHTML = '<span class="branch-meta">' + (data.current || 'main') + '</span>';
+        return;
+      }
+
+      let h = '<select id="branch-select">';
+      for (const b of data.branches) {
+        const label = b.name + (b.active ? ' (active)' : '') + ' — ' + b.commits + ' commits, ' + b.nodes.length + ' nodes';
+        h += '<option value="' + b.name + '"' + (b.active ? ' selected' : '') + '>' + label + '</option>';
+      }
+      h += '</select>';
+
+      // Show meta for selected branch
+      const active = data.branches.find(b => b.active);
+      if (active) {
+        h += '<span class="branch-meta"><span class="commits">' + active.commits + ' commits</span> · <span class="nodes">' + active.nodes.length + ' nodes touched</span></span>';
+      }
+
+      container.innerHTML = h;
+
+      document.getElementById("branch-select").addEventListener("change", function(e) {
+        const branch = e.target.value;
+        window.location.href = "/?branch=" + encodeURIComponent(branch);
+      });
+    })
+    .catch(() => {});
+})();
 `;

@@ -83,6 +83,38 @@ export function startWatchServer(opts: WatchOptions) {
     return c.json(loadTimeline(cwd));
   });
 
+  app.get("/api/branches", (c) => {
+    const currentBranch = getCurrentBranch(cwd);
+    const diverged = getDivergedBranches(cwd, opts.base);
+    const topology = loadTopology();
+
+    // Always include the current branch
+    const allBranches = diverged.includes(currentBranch) ? diverged : [currentBranch, ...diverged];
+
+    const branches = allBranches.map((branch) => {
+      const isActive = branch === currentBranch;
+      const commits = getBranchCommitCount(cwd, opts.base, branch);
+
+      // Compute structural footprint for this branch
+      const fileDiffs = captureDiff(opts.base, cwd, {
+        includeWorktree: isActive,
+        ref: isActive ? undefined : branch,
+      });
+      const nodeStats = fileDiffs.length > 0 ? computeNodeStats(fileDiffs, topology) : [];
+
+      return {
+        name: branch,
+        active: isActive,
+        commits,
+        nodes: nodeStats.map((n) => n.id),
+        totalLinesAdded: nodeStats.reduce((s, n) => s + n.linesAdded, 0),
+        totalLinesRemoved: nodeStats.reduce((s, n) => s + n.linesRemoved, 0),
+      };
+    });
+
+    return c.json({ current: currentBranch, base: opts.base, branches });
+  });
+
   app.get("/api/state", (c) => {
     const topology = loadTopology();
     const delta = loadDelta();
@@ -201,7 +233,14 @@ export function startWatchServer(opts: WatchOptions) {
   app.get("/", (c) => {
     const topology = loadTopology();
     const delta = loadDelta();
-    const fileDiffs = captureDiff(opts.base, cwd, { includeWorktree: true });
+    const branch = c.req.query("branch");
+    const currentBranch = getCurrentBranch(cwd);
+    const isActiveBranch = !branch || branch === currentBranch;
+
+    const fileDiffs = isActiveBranch
+      ? captureDiff(opts.base, cwd, { includeWorktree: true })
+      : captureDiff(opts.base, cwd, { ref: branch });
+
     const nodeDiffs = fileDiffs.length > 0 ? mapDiffsToNodes(fileDiffs, topology) : [];
     const timeline = loadTimeline(cwd);
     const html = renderWatchView(topology, delta, nodeDiffs, timeline);
@@ -283,6 +322,42 @@ function getCurrentCommit(cwd: string): string {
     return execSync("git rev-parse HEAD", { cwd, encoding: "utf-8" }).trim();
   } catch {
     return "";
+  }
+}
+
+function getCurrentBranch(cwd: string): string {
+  try {
+    return execSync("git rev-parse --abbrev-ref HEAD", { cwd, encoding: "utf-8" }).trim();
+  } catch {
+    return "unknown";
+  }
+}
+
+function getDivergedBranches(cwd: string, base: string): string[] {
+  try {
+    const raw = execSync("git branch --no-merged " + base, {
+      cwd,
+      encoding: "utf-8",
+    }).trim();
+    if (!raw) return [];
+    return raw
+      .split("\n")
+      .map((b) => b.replace(/^[\s*+]+/, "").trim())
+      .filter((b) => b && !b.startsWith("(") && b !== base);
+  } catch {
+    return [];
+  }
+}
+
+function getBranchCommitCount(cwd: string, base: string, branch: string): number {
+  try {
+    const count = execSync(`git rev-list --count ${base}..${branch}`, {
+      cwd,
+      encoding: "utf-8",
+    }).trim();
+    return parseInt(count) || 0;
+  } catch {
+    return 0;
   }
 }
 
