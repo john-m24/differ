@@ -21,9 +21,18 @@ export interface LayoutEdge {
   points: { x: number; y: number }[];
 }
 
+export interface FolderGroup {
+  path: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface GraphLayout {
   nodes: LayoutNode[];
   edges: LayoutEdge[];
+  folders: FolderGroup[];
   width: number;
   height: number;
 }
@@ -41,12 +50,14 @@ export function computeLayout(
   const addedIds = new Set(delta.added);
   const removedIds = new Set(delta.removed);
   const blastIds = new Set(delta.blast_radius);
+  const diffNodeIds = new Set((nodeDiffs || []).map((nd) => nd.nodeId));
 
   function getStatus(id: string): string {
     if (addedIds.has(id)) return "added";
     if (removedIds.has(id)) return "removed";
     if (changedIds.has(id)) return "changed";
     if (blastIds.has(id)) return "blast-radius";
+    if (diffNodeIds.has(id)) return "changed";
     return "unchanged";
   }
 
@@ -124,10 +135,37 @@ export function computeLayout(
     });
   }
 
+  // Compute folder groups from node positions
+  const folderMap = new Map<string, LayoutNode[]>();
+  for (const node of layoutNodes) {
+    const parts = node.id.split("/");
+    const folder = parts.length > 1 ? parts.slice(0, -1).join("/") : ".";
+    if (!folderMap.has(folder)) folderMap.set(folder, []);
+    folderMap.get(folder)!.push(node);
+  }
+
+  const padding = 20;
+  const folders: FolderGroup[] = [];
+  for (const [path, nodes] of folderMap) {
+    if (nodes.length < 2) continue;
+    const minX = Math.min(...nodes.map((n) => n.x - n.width / 2));
+    const maxX = Math.max(...nodes.map((n) => n.x + n.width / 2));
+    const minY = Math.min(...nodes.map((n) => n.y - n.height / 2));
+    const maxY = Math.max(...nodes.map((n) => n.y + n.height / 2));
+    folders.push({
+      path,
+      x: minX - padding,
+      y: minY - padding,
+      width: maxX - minX + padding * 2,
+      height: maxY - minY + padding * 2,
+    });
+  }
+
   const graphInfo = g.graph();
   return {
     nodes: layoutNodes,
     edges: layoutEdges,
+    folders,
     width: (graphInfo.width || 800) + 80,
     height: (graphInfo.height || 600) + 80,
   };

@@ -2,7 +2,8 @@ import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import { readFileSync, existsSync } from "node:fs";
 import { execSync } from "node:child_process";
-import { renderWatchView } from "./render-watch.js";
+import { renderServeView } from "./render-serve.js";
+import { captureCommits } from "./diff.js";
 import { captureDiff, mapDiffsToNodes } from "./diff.js";
 import { computeNodeStats, computeIncremental } from "./diff-stats.js";
 import { loadTimeline, appendEntry, resetTimeline } from "./timeline.js";
@@ -236,8 +237,8 @@ export function startWatchServer(opts: WatchOptions) {
       : captureDiff(opts.base, cwd, { ref: branch });
 
     const nodeDiffs = fileDiffs.length > 0 ? mapDiffsToNodes(fileDiffs, topology) : [];
-    const timeline = loadTimeline(cwd);
-    const html = renderWatchView(topology, delta, nodeDiffs, timeline);
+    const commits = captureCommits(opts.base, cwd);
+    const html = renderServeView(topology, delta, nodeDiffs, commits);
     return c.html(html);
   });
 

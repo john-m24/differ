@@ -6,6 +6,7 @@ export const SCRIPT = `
   const addedIds = new Set(delta.added);
   const removedIds = new Set(delta.removed);
   const blastIds = new Set(delta.blast_radius);
+  const diffNodeIds = new Set(nodeDiffs.map(nd => nd.nodeId));
   const removedEdgeKeys = new Set(delta.edges_removed.map(e => e.from + "->" + e.to));
   const addedEdgeKeys = new Set(delta.edges_added.map(e => e.from + "->" + e.to));
 
@@ -32,6 +33,7 @@ export const SCRIPT = `
     if (removedIds.has(id)) return "removed";
     if (changedIds.has(id)) return "changed";
     if (blastIds.has(id)) return "blast-radius";
+    if (diffNodeIds.has(id)) return "changed";
     return "unchanged";
   }
 
@@ -382,6 +384,26 @@ export const SCRIPT = `
     svg.setAttribute("viewBox", "0 0 " + width + " " + height);
     svg.innerHTML = '<defs><marker id="arr" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--border)"/></marker><marker id="arr-add" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--accent-green)"/></marker><marker id="arr-del" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--accent-red)"/></marker></defs>';
 
+    // Draw folder groups
+    (layout.folders || []).forEach(f => {
+      const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      g.setAttribute("class", "folder-group");
+      const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+      rect.setAttribute("x", f.x);
+      rect.setAttribute("y", f.y);
+      rect.setAttribute("width", f.width);
+      rect.setAttribute("height", f.height);
+      rect.setAttribute("rx", "8");
+      g.appendChild(rect);
+      const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      label.setAttribute("x", f.x + 8);
+      label.setAttribute("y", f.y + 14);
+      label.setAttribute("class", "folder-label");
+      label.textContent = f.path;
+      g.appendChild(label);
+      svg.appendChild(g);
+    });
+
     edges.forEach(e => {
       const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
       g.setAttribute("class", "edge-group");
@@ -436,6 +458,55 @@ export const SCRIPT = `
 
     applyFilters();
     updateGraphHighlights();
+
+    // Zoom and pan
+    let zoom = 1;
+    let panX = 0, panY = 0;
+    let isPanning = false, panStartX = 0, panStartY = 0, panStartPanX = 0, panStartPanY = 0;
+
+    function applyTransform() {
+      const vw = width / zoom;
+      const vh = height / zoom;
+      const vx = (width - vw) / 2 - panX / zoom;
+      const vy = (height - vh) / 2 - panY / zoom;
+      svg.setAttribute("viewBox", vx + " " + vy + " " + vw + " " + vh);
+    }
+
+    svg.addEventListener("wheel", function(e) {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? 0.9 : 1.1;
+      zoom = Math.max(0.2, Math.min(5, zoom * delta));
+      applyTransform();
+    }, { passive: false });
+
+    let dragMoved = false;
+    svg.addEventListener("mousedown", function(e) {
+      isPanning = true;
+      dragMoved = false;
+      panStartX = e.clientX;
+      panStartY = e.clientY;
+      panStartPanX = panX;
+      panStartPanY = panY;
+      svg.style.cursor = "grabbing";
+      e.preventDefault();
+    });
+    document.addEventListener("mousemove", function(e) {
+      if (!isPanning) return;
+      const dx = e.clientX - panStartX;
+      const dy = e.clientY - panStartY;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) dragMoved = true;
+      panX = panStartPanX + dx;
+      panY = panStartPanY + dy;
+      applyTransform();
+    });
+    document.addEventListener("mouseup", function() {
+      if (isPanning) { isPanning = false; svg.style.cursor = ""; }
+    });
+
+    // Suppress node click if user was dragging
+    svg.addEventListener("click", function(e) {
+      if (dragMoved) { e.stopPropagation(); dragMoved = false; }
+    }, true);
   }
 
   function updateGraphHighlights() {

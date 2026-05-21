@@ -56,12 +56,12 @@ const SOURCE_EXTENSIONS = new Set([
 
 export function computeTopology(cwd: string, config?: TopologyConfig): Topology {
   const ignore = new Set([...DEFAULT_IGNORE, ...(config?.ignore ?? [])]);
-  if (config?.granularity === "file") {
-    return computeFileTopology(cwd, ignore, config);
+  if (config?.granularity === "directory") {
+    const nodes = detectNodes(cwd, ignore, config);
+    const edges = detectEdges(cwd, nodes);
+    return { nodes, edges };
   }
-  const nodes = detectNodes(cwd, ignore, config);
-  const edges = detectEdges(cwd, nodes);
-  return { nodes, edges };
+  return computeFileTopology(cwd, ignore, config);
 }
 
 function computeFileTopology(cwd: string, ignore: Set<string>, config?: TopologyConfig): Topology {

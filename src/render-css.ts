@@ -267,7 +267,7 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-
 .filter-btn.active { color: var(--text-primary); border-color: #2a2a2d; }
 .filter-btn:not(.active) { opacity: 0.4; }
 .graph-area { flex: 1; position: relative; overflow: hidden; }
-#graph { width: 100%; height: 100%; }
+#graph { width: 100%; height: 100%; cursor: grab; }
 
 /* Graph nodes and edges */
 .node { cursor: pointer; }
@@ -285,6 +285,9 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-
 .node.dimmed { opacity: 0.25; }
 .node:hover rect { filter: brightness(1.2); }
 .node.file-highlighted rect { stroke-width: 2.5; stroke: var(--accent-blue); }
+
+.folder-group rect { fill: var(--surface); stroke: var(--border); stroke-width: 1; stroke-dasharray: 4; opacity: 0.5; }
+.folder-label { font-size: 9px; fill: var(--text-tertiary); font-family: 'Inter', sans-serif; }
 
 .edge { stroke: var(--border); stroke-width: 1.2; fill: none; }
 .edge.added { stroke: var(--accent-green); stroke-width: 1.5; }
