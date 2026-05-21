@@ -71,6 +71,24 @@
       "type": "module",
       "files": ["src/analyze.ts"],
       "description": "AI analysis pipeline — sends git diff + topology to Claude, generates SYSTEM_DELTA.json"
+    },
+    {
+      "id": "Personal",
+      "type": "module",
+      "files": ["src/personal.ts"],
+      "description": "Personal review mode — manages .differ/ directory lifecycle and orchestrates zero-config review flow"
+    },
+    {
+      "id": "Diff",
+      "type": "module",
+      "files": ["src/diff.ts"],
+      "description": "Git diff capture and file-to-node mapping"
+    },
+    {
+      "id": "Layout",
+      "type": "module",
+      "files": ["src/layout.ts"],
+      "description": "Graph layout computation using dagre for topology visualization"
     }
   ],
   "edges": [
@@ -86,6 +104,13 @@
     { "from": "CLI", "to": "Analyze", "type": "calls", "description": "analyze command invokes analyzeDiff()" },
     { "from": "Analyze", "to": "Types", "type": "depends", "description": "imports Topology and SystemDelta types" },
     { "from": "StopHook", "to": "CLI", "type": "calls", "description": "hook runs differ analyze then serve-review.sh" },
-    { "from": "ServeScript", "to": "CLI", "type": "calls", "description": "starts differ serve on available port" }
+    { "from": "ServeScript", "to": "CLI", "type": "calls", "description": "starts differ serve on available port" },
+    { "from": "CLI", "to": "Personal", "type": "calls", "description": "bare differ command invokes runPersonalMode()" },
+    { "from": "Personal", "to": "Init", "type": "calls", "description": "auto-scaffolds topology when none exists" },
+    { "from": "Personal", "to": "Diff", "type": "calls", "description": "captures git diff for analysis" },
+    { "from": "Personal", "to": "Analyze", "type": "calls", "description": "runs Claude analysis on captured diff" },
+    { "from": "Personal", "to": "Server", "type": "calls", "description": "starts live review server" },
+    { "from": "Analyze", "to": "Diff", "type": "depends", "description": "uses FileHunk and NodeDiff types" },
+    { "from": "Renderer", "to": "Layout", "type": "calls", "description": "computes graph positions for topology nodes" }
   ]
 }
