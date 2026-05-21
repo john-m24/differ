@@ -6,6 +6,7 @@ import { initTopology } from "./init.js";
 import { captureDiff, captureCommits, mapDiffsToNodes } from "./diff.js";
 import { analyzeDiff, buildPrompt } from "./analyze.js";
 import { startServer } from "./server.js";
+import { startWatchServer } from "./watch-server.js";
 import type { Topology, SystemDelta } from "./types.js";
 
 program
@@ -121,6 +122,26 @@ program
 
     writeFileSync(outputPath, JSON.stringify(delta, null, 2) + "\n");
     console.log(`Analysis written to ${outputPath}`);
+  });
+
+program
+  .command("watch")
+  .description("Watch source files and show live structural activity")
+  .option("-t, --topology <path>", "path to topology.json", "topology.json")
+  .option("-d, --delta <path>", "path to SYSTEM_DELTA.json", "SYSTEM_DELTA.json")
+  .option("-b, --base <ref>", "git base ref for diff", "origin/main")
+  .option("-p, --port <port>", "port to serve on", "3141")
+  .option("--debounce <ms>", "debounce delay in ms", "1500")
+  .option("--fresh", "start a fresh timeline session")
+  .action((opts) => {
+    startWatchServer({
+      topologyPath: resolve(opts.topology),
+      deltaPath: resolve(opts.delta),
+      base: opts.base,
+      port: parseInt(opts.port),
+      debounceMs: parseInt(opts.debounce),
+      fresh: opts.fresh || false,
+    });
   });
 
 program
