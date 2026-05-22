@@ -21,8 +21,8 @@ const KIND_STYLES: Record<ReactNodeKind, { borderStyle: string; icon: string }> 
 };
 
 const STATUS_COLORS = {
-  changed: { border: "#2563eb", bg: "#eff6ff" },
-  affected: { border: "#d97706", bg: "#fffbeb" },
+  changed: { border: "#d97706", bg: "#fef3c7" },
+  affected: { border: "#7c3aed", bg: "#ede9fe" },
   unchanged: { border: "#e5e7eb", bg: "#ffffff" },
 };
 
