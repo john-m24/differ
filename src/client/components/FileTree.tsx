@@ -1,13 +1,13 @@
-import { useState } from "preact/hooks";
-import { selectedNode, selectedFile, activeFileHunks, setSelectedFile, setSelectedNode, getOwnerNode, DATA } from "../state.js";
+import React, { useState } from "react";
+import { useStore, DATA, fileMatchesPattern } from "../state.js";
 import type { FileHunk } from "../types.js";
 
 export function FileTree() {
-  const nodeId = selectedNode.value;
-  let files = activeFileHunks.value;
+  const { selectedNode, selectedFile, activeFileHunks, setSelectedFile, setSelectedNode } = useStore();
+  let files = activeFileHunks;
 
-  if (nodeId) {
-    const node = DATA.topology.nodes.find(n => n.id === nodeId);
+  if (selectedNode) {
+    const node = DATA.topology.nodes.find(n => n.id === selectedNode);
     if (node) {
       files = files.filter(f => node.files.some(p => fileMatchesPattern(f.file, p)));
     }
@@ -27,18 +27,18 @@ export function FileTree() {
 
   return (
     <>
-      {nodeId && (
-        <div class="file-tree-filter">
-          <span class="file-tree-filter-name">{nodeId}</span>
-          <button class="file-tree-filter-clear" onClick={() => setSelectedNode(null)}>&times;</button>
+      {selectedNode && (
+        <div className="file-tree-filter">
+          <span className="file-tree-filter-name">{selectedNode}</span>
+          <button className="file-tree-filter-clear" onClick={() => setSelectedNode(null)}>×</button>
         </div>
       )}
       {uniqueFiles.length === 0 ? (
-        <div class="file-tree-empty">No files in selection</div>
+        <div className="file-tree-empty">No files in selection</div>
       ) : (
-        <div class="file-tree">
+        <div className="file-tree">
           {Object.keys(dirs).sort().map(dir => (
-            <DirGroup key={dir} dir={dir} files={dirs[dir]} />
+            <DirGroup key={dir} dir={dir} files={dirs[dir]} selectedFile={selectedFile} onSelect={setSelectedFile} />
           ))}
         </div>
       )}
@@ -46,29 +46,29 @@ export function FileTree() {
   );
 }
 
-function DirGroup({ dir, files }: { dir: string; files: FileHunk[] }) {
+function DirGroup({ dir, files, selectedFile, onSelect }: {
+  dir: string; files: FileHunk[]; selectedFile: string | null; onSelect: (f: string) => void;
+}) {
   const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <div class={"tree-dir" + (collapsed ? " collapsed" : "")}>
-      <div class="tree-dir-header" onClick={() => setCollapsed(!collapsed)}>
-        <span class="tree-dir-chevron">&#9662;</span> {dir}
+    <div className={"tree-dir" + (collapsed ? " collapsed" : "")}>
+      <div className="tree-dir-header" onClick={() => setCollapsed(!collapsed)}>
+        <span className="tree-dir-chevron">▾</span> {dir}
       </div>
       {!collapsed && (
-        <div class="tree-dir-files">
+        <div className="tree-dir-files">
           {files.map(f => {
             const name = f.file.split("/").pop();
-            const owner = getOwnerNode(f.file);
-            const sel = selectedFile.value === f.file;
+            const sel = selectedFile === f.file;
             return (
               <div
                 key={f.file}
-                class={"tree-file" + (sel ? " selected" : "")}
-                onClick={() => setSelectedFile(f.file)}
+                className={"tree-file" + (sel ? " selected" : "")}
+                onClick={() => onSelect(f.file)}
               >
-                <span class={"tree-file-status " + f.status}>{f.status}</span>
-                <span class="tree-file-name">{name}</span>
-                {owner && !selectedNode.value && <span class="tree-file-node">{owner}</span>}
+                <span className={"tree-file-status " + f.status}>{f.status}</span>
+                <span className="tree-file-name">{name}</span>
               </div>
             );
           })}
@@ -76,9 +76,4 @@ function DirGroup({ dir, files }: { dir: string; files: FileHunk[] }) {
       )}
     </div>
   );
-}
-
-function fileMatchesPattern(file: string, pattern: string): boolean {
-  const re = pattern.replace(/\./g, "\\.").replace(/\*\*\//g, "(.+/)?").replace(/\*\*/g, ".*").replace(/\*/g, "[^/]*");
-  return new RegExp("^" + re + "$").test(file);
 }

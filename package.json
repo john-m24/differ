@@ -17,15 +17,19 @@
   "dependencies": {
     "@dagrejs/dagre": "^3.0.0",
     "@hono/node-server": "^2.0.2",
-    "@preact/signals": "^2.9.0",
+    "@xyflow/react": "^12.10.2",
     "better-sqlite3": "^12.10.0",
     "commander": "^14.0.3",
     "hono": "^4.12.18",
-    "preact": "^10.29.2"
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "zustand": "^5.0.13"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^25.7.0",
+    "@types/react": "^19.2.15",
+    "@types/react-dom": "^19.2.3",
     "tsup": "^8.5.1",
     "typescript": "^6.0.3",
     "vitest": "^4.1.6"

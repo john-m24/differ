@@ -1,4 +1,4 @@
-import { useRef } from "preact/hooks";
+import React, { useRef, useCallback } from "react";
 
 interface Props {
   side: "left" | "right";
@@ -8,7 +8,7 @@ interface Props {
 export function PanelResizer({ side, target }: Props) {
   const ref = useRef<HTMLDivElement>(null);
 
-  function onMouseDown(e: MouseEvent) {
+  const onMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     const panel = document.querySelector(target) as HTMLElement;
     if (!panel) return;
@@ -32,7 +32,7 @@ export function PanelResizer({ side, target }: Props) {
 
     document.addEventListener("mousemove", onMove);
     document.addEventListener("mouseup", onUp);
-  }
+  }, [side, target]);
 
-  return <div ref={ref} class="panel-divider" onMouseDown={onMouseDown as any} />;
+  return <div ref={ref} className="panel-divider" onMouseDown={onMouseDown} />;
 }

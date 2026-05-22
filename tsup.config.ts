@@ -13,7 +13,7 @@ export default defineConfig([
     treeshake: true,
     esbuildOptions(options) {
       options.jsx = "automatic";
-      options.jsxImportSource = "preact";
+      options.jsxImportSource = "react";
     },
   },
   {

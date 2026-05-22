@@ -15,6 +15,19 @@ function getClientScript(): string {
   }
 }
 
+function getReactFlowCSS(): string {
+  try {
+    const rfPath = join(dirname(fileURLToPath(import.meta.url)), "..", "node_modules", "@xyflow", "react", "dist", "style.css");
+    return readFileSync(rfPath, "utf-8");
+  } catch {
+    try {
+      return readFileSync(join(process.cwd(), "node_modules", "@xyflow", "react", "dist", "style.css"), "utf-8");
+    } catch {
+      return "";
+    }
+  }
+}
+
 export function renderReview(
   topology: Topology,
   delta: SystemDelta,
@@ -41,6 +54,7 @@ export function renderReview(
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Differ</title>
 <style>
+${getReactFlowCSS()}
 ${CSS}
 </style>
 </head>

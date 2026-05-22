@@ -43,7 +43,7 @@ export function computeLayout(
   nodeDiffs?: NodeDiff[]
 ): GraphLayout {
   const g = new Graph();
-  g.setGraph({ rankdir: "TB", nodesep: 60, ranksep: 80, marginx: 40, marginy: 40 });
+  g.setGraph({ rankdir: "LR", nodesep: 20, ranksep: 50, marginx: 20, marginy: 20 });
   g.setDefaultEdgeLabel(() => ({}));
 
   const changedIds = new Set(delta.changed.map((c) => c.id));
@@ -82,9 +82,10 @@ export function computeLayout(
       : 0;
     const status = getStatus(id);
 
-    const baseWidth = Math.max(100, id.length * 9 + 32);
-    const baseHeight = 40;
-    const scale = status !== "unchanged" ? 1 + Math.min(0.4, (weight / maxWeight) * 0.4) : 1;
+    const label = id.split("/").pop() || id;
+    const baseWidth = Math.max(80, label.length * 7 + 20);
+    const baseHeight = 30;
+    const scale = status !== "unchanged" ? 1 + Math.min(0.3, (weight / maxWeight) * 0.3) : 1;
 
     g.setNode(id, {
       width: baseWidth * scale,
