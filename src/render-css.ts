@@ -379,4 +379,34 @@ body {
 .node-link-kind.page { background: #ecfdf5; color: #059669; }
 .node-link-kind.context { background: #fefce8; color: #ca8a04; }
 .node-link-name { color: var(--text); }
+
+/* View switcher */
+.view-switcher {
+  display: flex;
+  gap: 2px;
+  background: var(--surface);
+  border-radius: 5px;
+  padding: 2px;
+  margin-right: 12px;
+}
+.view-tab {
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.view-tab:hover { color: var(--text); }
+.view-tab.active {
+  background: var(--bg);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+}
+
+/* Project view — layered architecture graph */
+.project-view .react-flow { width: 100%; height: 100%; }
 `;
