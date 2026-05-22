@@ -1,4 +1,5 @@
-import { selectedFile, getOwnerNode, setSelectedNode, DATA } from "../state.js";
+import React from "react";
+import { useStore, getOwnerNode, DATA } from "../state.js";
 
 interface DiffRow {
   type: "hunk" | "ctx" | "add" | "del" | "change";
@@ -15,6 +16,7 @@ function parseSideBySide(hunks: string): DiffRow[] {
 
   while (i < lines.length) {
     const line = lines[i];
+    if (!line && i === lines.length - 1) break;
 
     if (line.startsWith("@@")) {
       const match = line.match(/@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
@@ -31,14 +33,15 @@ function parseSideBySide(hunks: string): DiffRow[] {
       while (i < lines.length && lines[i].startsWith("+")) { adds.push(lines[i].slice(1)); i++; }
       const maxLen = Math.max(dels.length, adds.length);
       for (let j = 0; j < maxLen; j++) {
-        leftNum++; rightNum++;
+        const hasLeft = j < dels.length;
+        const hasRight = j < adds.length;
+        if (hasLeft) leftNum++;
+        if (hasRight) rightNum++;
         rows.push({
-          type: j < dels.length && j < adds.length ? "change" : j < dels.length ? "del" : "add",
-          left: j < dels.length ? { num: leftNum, text: dels[j] } : null,
-          right: j < adds.length ? { num: rightNum, text: adds[j] } : null,
+          type: hasLeft && hasRight ? "change" : hasLeft ? "del" : "add",
+          left: hasLeft ? { num: leftNum, text: dels[j] } : null,
+          right: hasRight ? { num: rightNum, text: adds[j] } : null,
         });
-        if (j >= dels.length) leftNum--;
-        if (j >= adds.length) rightNum--;
       }
       continue;
     }
@@ -60,57 +63,131 @@ function parseSideBySide(hunks: string): DiffRow[] {
   return rows;
 }
 
-function esc(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+function parseUnifiedLines(hunks: string): { num: number; text: string }[] {
+  const lines = hunks.split("\n");
+  const result: { num: number; text: string }[] = [];
+  let lineNum = 0;
+
+  for (const line of lines) {
+    if (!line && lines.indexOf(line) === lines.length - 1) break;
+    if (line.startsWith("@@")) {
+      const match = line.match(/@@ [^+]*\+(\d+)/);
+      if (match) lineNum = parseInt(match[1]) - 1;
+      continue;
+    }
+    if (line.startsWith("+")) {
+      lineNum++;
+      result.push({ num: lineNum, text: line.slice(1) });
+    } else if (!line.startsWith("-")) {
+      lineNum++;
+      result.push({ num: lineNum, text: line.startsWith(" ") ? line.slice(1) : line });
+    }
+  }
+  return result;
 }
 
 export function DiffView() {
-  const file = selectedFile.value;
-  if (!file) {
-    return <div class="diff-empty">Select a file to view diff</div>;
+  const { selectedFile, setSelectedNode } = useStore();
+
+  if (!selectedFile) {
+    return <div className="diff-empty">Select a file to view diff</div>;
   }
 
   let fileHunk = null;
   for (const nd of DATA.nodeDiffs) {
-    const found = nd.files.find(f => f.file === file);
+    const found = nd.files.find(f => f.file === selectedFile);
     if (found) { fileHunk = found; break; }
   }
 
   if (!fileHunk) {
-    return <div class="diff-empty">No diff data for {file}</div>;
+    return <div className="diff-empty">No diff data for {selectedFile}</div>;
   }
 
-  const owner = getOwnerNode(file);
-  const rows = parseSideBySide(fileHunk.hunks);
+  const owner = getOwnerNode(selectedFile);
+  const isNewFile = fileHunk.status === "A";
+  const isDeleted = fileHunk.status === "D";
 
   return (
     <>
-      <div class="diff-header">
-        <span class={"diff-header-badge " + fileHunk.status}>{fileHunk.status}</span>
-        <span class="diff-header-path">{file}</span>
+      <div className="diff-header">
+        <span className={"diff-header-badge " + fileHunk.status}>
+          {fileHunk.status === "A" ? "new" : fileHunk.status === "D" ? "del" : fileHunk.status === "M" ? "mod" : fileHunk.status}
+        </span>
+        <span className="diff-header-path">{selectedFile}</span>
         {owner && (
-          <span class="diff-header-node" onClick={() => setSelectedNode(owner)}>{owner}</span>
+          <span className="diff-header-node" onClick={() => setSelectedNode(owner)}>{owner}</span>
         )}
       </div>
-      <div class="diff-table-wrap">
-        <table class="diff-table">
-          <tbody>
-            {rows.map((row, i) => {
-              if (row.type === "hunk") {
-                return <tr key={i} class="hunk-header"><td colSpan={4}>{row.text}</td></tr>;
-              }
-              return (
-                <tr key={i} class={row.type}>
-                  <td class="ln">{row.left?.num ?? ""}</td>
-                  <td class="code code-left" dangerouslySetInnerHTML={{ __html: row.left ? esc(row.left.text) : "" }} />
-                  <td class="ln">{row.right?.num ?? ""}</td>
-                  <td class="code code-right" dangerouslySetInnerHTML={{ __html: row.right ? esc(row.right.text) : "" }} />
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      {isNewFile ? (
+        <NewFileView hunks={fileHunk.hunks} />
+      ) : isDeleted ? (
+        <DeletedFileView hunks={fileHunk.hunks} />
+      ) : (
+        <SideBySideView hunks={fileHunk.hunks} />
+      )}
     </>
+  );
+}
+
+function NewFileView({ hunks }: { hunks: string }) {
+  const lines = parseUnifiedLines(hunks);
+  return (
+    <div className="diff-table-wrap">
+      <table className="diff-table diff-unified">
+        <tbody>
+          {lines.map((l, i) => (
+            <tr key={i} className="add">
+              <td className="ln">{l.num}</td>
+              <td className="code">{l.text}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function DeletedFileView({ hunks }: { hunks: string }) {
+  const lines = hunks.split("\n")
+    .filter(l => l.startsWith("-") && !l.startsWith("---"))
+    .map((l, i) => ({ num: i + 1, text: l.slice(1) }));
+  return (
+    <div className="diff-table-wrap">
+      <table className="diff-table diff-unified">
+        <tbody>
+          {lines.map((l, i) => (
+            <tr key={i} className="del">
+              <td className="ln">{l.num}</td>
+              <td className="code">{l.text}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function SideBySideView({ hunks }: { hunks: string }) {
+  const rows = parseSideBySide(hunks);
+  return (
+    <div className="diff-table-wrap">
+      <table className="diff-table">
+        <tbody>
+          {rows.map((row, i) => {
+            if (row.type === "hunk") {
+              return <tr key={i} className="hunk-header"><td colSpan={4}>{row.text}</td></tr>;
+            }
+            return (
+              <tr key={i} className={row.type}>
+                <td className="ln">{row.left?.num ?? ""}</td>
+                <td className="code code-left">{row.left?.text ?? ""}</td>
+                <td className="ln">{row.right?.num ?? ""}</td>
+                <td className="code code-right">{row.right?.text ?? ""}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }

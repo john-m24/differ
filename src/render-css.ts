@@ -284,13 +284,18 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-
 .diff-table tr.change td.code-right { background: var(--diff-add-bg); color: var(--accent-green); }
 .diff-table tr.ctx td { color: var(--text-tertiary); }
 
+/* Unified diff (new/deleted files) */
+.diff-unified td.code { width: auto; }
+.diff-unified tr.add td.code { background: var(--diff-add-bg); color: var(--accent-green); }
+.diff-unified tr.del td.code { background: var(--diff-del-bg); color: var(--accent-red); }
+
 /* Graph panel */
 .graph-toolbar { padding: 6px 10px; border-bottom: 1px solid var(--border); display: flex; gap: 4px; flex-wrap: wrap; flex-shrink: 0; align-items: center; }
 .filter-btn { background: var(--surface); border: 1px solid var(--border); color: var(--text-tertiary); padding: 2px 7px; border-radius: 3px; font-size: 10px; cursor: pointer; }
 .filter-btn.active { color: var(--text-primary); border-color: #2a2a2d; }
 .filter-btn:not(.active) { opacity: 0.4; }
 .graph-area { flex: 1; position: relative; overflow: hidden; }
-#graph { width: 100%; height: 100%; cursor: grab; }
+.graph-area .react-flow { width: 100%; height: 100%; }
 
 /* Graph nodes and edges */
 .node { cursor: pointer; }

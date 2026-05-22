@@ -1,4 +1,4 @@
-import { useEffect } from "preact/hooks";
+import React, { useEffect } from "react";
 import { BranchSelector } from "./components/BranchSelector.js";
 import { CommitBar } from "./components/CommitBar.js";
 import { FileTree } from "./components/FileTree.js";
@@ -18,20 +18,20 @@ export function App() {
 
   return (
     <>
-      <div class="top-bar">
+      <div className="top-bar">
         <BranchSelector />
         <CommitBar />
       </div>
-      <div class="panels">
-        <aside class="panel-left" id="file-tree">
+      <div className="panels">
+        <aside className="panel-left" id="file-tree">
           <FileTree />
         </aside>
         <PanelResizer side="left" target=".panel-left" />
-        <main class="panel-center" id="diff-view">
+        <main className="panel-center" id="diff-view">
           <DiffView />
         </main>
         <PanelResizer side="right" target=".panel-right" />
-        <aside class="panel-right" id="graph-panel">
+        <aside className="panel-right" id="graph-panel">
           <GraphPanel />
         </aside>
       </div>

@@ -1,5 +1,4 @@
-import { signal } from "@preact/signals";
-import { useEffect } from "preact/hooks";
+import React, { useState, useEffect } from "react";
 
 interface BranchInfo {
   name: string;
@@ -7,19 +6,19 @@ interface BranchInfo {
   commits: number;
 }
 
-const branches = signal<BranchInfo[]>([]);
-const currentBase = signal("main");
-const currentHead = signal("");
-
 export function BranchSelector() {
+  const [branches, setBranches] = useState<BranchInfo[]>([]);
+  const [currentBase, setCurrentBase] = useState("main");
+  const [currentHead, setCurrentHead] = useState("");
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    currentBase.value = params.get("base") || "main";
-    currentHead.value = params.get("branch") || "";
+    setCurrentBase(params.get("base") || "main");
+    setCurrentHead(params.get("branch") || "");
 
     fetch("/api/branches").then(r => r.json()).then(data => {
-      if (data.branches) branches.value = data.branches;
-      if (!currentHead.value && data.current) currentHead.value = data.current;
+      if (data.branches) setBranches(data.branches);
+      if (!params.get("branch") && data.current) setCurrentHead(data.current);
     }).catch(() => {});
   }, []);
 
@@ -32,30 +31,30 @@ export function BranchSelector() {
   }
 
   return (
-    <div class="branch-selector">
-      <div class="branch-pair">
-        <label class="branch-label">base</label>
+    <div className="branch-selector">
+      <div className="branch-pair">
+        <label className="branch-label">base</label>
         <select
-          class="branch-select"
-          value={currentBase.value}
-          onChange={(e) => navigate((e.target as HTMLSelectElement).value, currentHead.value)}
+          className="branch-select"
+          value={currentBase}
+          onChange={(e) => navigate(e.target.value, currentHead)}
         >
           <option value="main">main</option>
           <option value="origin/main">origin/main</option>
-          {branches.value.filter(b => !b.active).map(b => (
+          {branches.filter(b => !b.active).map(b => (
             <option key={b.name} value={b.name}>{b.name}</option>
           ))}
         </select>
       </div>
-      <span class="branch-arrow">&#8592;</span>
-      <div class="branch-pair">
-        <label class="branch-label">head</label>
+      <span className="branch-arrow">←</span>
+      <div className="branch-pair">
+        <label className="branch-label">head</label>
         <select
-          class="branch-select"
-          value={currentHead.value}
-          onChange={(e) => navigate(currentBase.value, (e.target as HTMLSelectElement).value)}
+          className="branch-select"
+          value={currentHead}
+          onChange={(e) => navigate(currentBase, e.target.value)}
         >
-          {branches.value.map(b => (
+          {branches.map(b => (
             <option key={b.name} value={b.name}>
               {b.name}{b.active ? " (current)" : ""} — {b.commits} commit{b.commits !== 1 ? "s" : ""}
             </option>
