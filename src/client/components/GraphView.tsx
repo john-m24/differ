@@ -9,82 +9,99 @@ import {
   Handle,
   Position,
 } from "@xyflow/react";
-import { useStore, DATA, getNodeStatus, getNodeActivity } from "../state.js";
+import { useStore, DATA, getNodeStatus } from "../state.js";
+import type { ReactNodeKind } from "../types.js";
 
-function TopologyNode({ data }: { data: { label: string; changed: boolean; activity: { committed: number; staged: number; unstaged: number } } }) {
-  const isChanged = data.changed;
+const KIND_STYLES: Record<ReactNodeKind, { borderStyle: string; icon: string }> = {
+  page: { borderStyle: "solid", icon: "◻" },
+  component: { borderStyle: "solid", icon: "" },
+  hook: { borderStyle: "dashed", icon: "⟡" },
+  store: { borderStyle: "solid", icon: "◎" },
+  context: { borderStyle: "dotted", icon: "○" },
+};
+
+const STATUS_COLORS = {
+  changed: { border: "#2563eb", bg: "#eff6ff" },
+  affected: { border: "#d97706", bg: "#fffbeb" },
+  unchanged: { border: "#e5e7eb", bg: "#ffffff" },
+};
+
+function SemanticNode({ data }: { data: { label: string; kind: ReactNodeKind; status: string; route?: string } }) {
+  const style = KIND_STYLES[data.kind];
+  const colors = STATUS_COLORS[data.status as keyof typeof STATUS_COLORS] || STATUS_COLORS.unchanged;
+
   return (
     <div
       style={{
-        padding: "8px 12px",
-        borderRadius: 6,
-        border: `1px solid ${isChanged ? "#2563eb" : "#e8e8e8"}`,
-        background: isChanged ? "#eff6ff" : "#ffffff",
-        fontSize: 11,
+        padding: data.kind === "page" ? "8px 14px" : "6px 10px",
+        borderRadius: data.kind === "page" ? 8 : data.kind === "store" ? 12 : 5,
+        border: `1.5px ${style.borderStyle} ${colors.border}`,
+        background: colors.bg,
+        fontSize: data.kind === "page" ? 12 : 11,
         fontFamily: "'SF Mono', 'JetBrains Mono', monospace",
+        fontWeight: data.kind === "page" ? 500 : 400,
         color: "#1a1a1a",
         whiteSpace: "nowrap",
         display: "flex",
         alignItems: "center",
-        gap: 6,
+        gap: 5,
       }}
     >
-      <Handle type="target" position={Position.Left} style={{ visibility: "hidden" }} />
-      <span>{data.label}</span>
-      <ActivityDots activity={data.activity} />
-      <Handle type="source" position={Position.Right} style={{ visibility: "hidden" }} />
+      <Handle type="target" position={Position.Top} style={{ visibility: "hidden" }} />
+      {style.icon && <span style={{ opacity: 0.5, fontSize: 10 }}>{style.icon}</span>}
+      <span>{data.route || data.label}</span>
+      <Handle type="source" position={Position.Bottom} style={{ visibility: "hidden" }} />
     </div>
   );
 }
 
-function ActivityDots({ activity }: { activity: { committed: number; staged: number; unstaged: number } }) {
-  const dots: React.ReactNode[] = [];
-  for (let i = 0; i < Math.min(activity.committed, 4); i++) {
-    dots.push(<span key={`c${i}`} style={{ width: 4, height: 4, borderRadius: "50%", background: "#2563eb", display: "inline-block" }} />);
-  }
-  for (let i = 0; i < Math.min(activity.staged, 3); i++) {
-    dots.push(<span key={`s${i}`} style={{ width: 4, height: 4, borderRadius: "50%", background: "#22c55e", display: "inline-block" }} />);
-  }
-  for (let i = 0; i < Math.min(activity.unstaged, 3); i++) {
-    dots.push(<span key={`u${i}`} style={{ width: 4, height: 4, borderRadius: "50%", border: "1px solid #999", background: "transparent", display: "inline-block" }} />);
-  }
-  if (dots.length === 0) return null;
-  return <span style={{ display: "flex", gap: 2, marginLeft: 4 }}>{dots}</span>;
-}
+const nodeTypes: NodeTypes = { semantic: SemanticNode };
 
-const nodeTypes: NodeTypes = { topology: TopologyNode };
+const EDGE_STYLES: Record<string, { stroke: string; strokeDasharray?: string; strokeWidth: number }> = {
+  renders: { stroke: "#d1d5db", strokeWidth: 1 },
+  "uses-hook": { stroke: "#93c5fd", strokeDasharray: "4 3", strokeWidth: 1 },
+  subscribes: { stroke: "#c4b5fd", strokeDasharray: "2 2", strokeWidth: 1.5 },
+  provides: { stroke: "#86efac", strokeDasharray: "6 3", strokeWidth: 1.5 },
+};
 
 export function GraphView() {
   const { selectedNode, setSelectedNode } = useStore();
 
   const { nodes, edges } = useMemo(() => {
     const layout = DATA.layout;
+    const topoNodes = DATA.topology.nodes;
+
     const rfNodes: Node[] = layout.nodes.map(n => {
+      const topoNode = topoNodes.find(tn => tn.id === n.id);
       const status = getNodeStatus(n.id);
-      const activity = getNodeActivity(n.id);
       return {
         id: n.id,
-        type: "topology",
-        position: { x: n.x, y: n.y },
+        type: "semantic",
+        position: { x: n.x - n.width / 2, y: n.y - n.height / 2 },
         data: {
-          label: n.id.split("/").pop() || n.id,
-          changed: status === "changed",
-          activity,
+          label: topoNode?.name || n.id.split("/").pop() || n.id,
+          kind: topoNode?.kind || "component",
+          status,
+          route: topoNode?.route,
         },
         selected: n.id === selectedNode,
       };
     });
 
-    const visibleIds = new Set(rfNodes.map(n => n.id));
-    const rfEdges: Edge[] = layout.edges
-      .filter(e => visibleIds.has(e.source) && visibleIds.has(e.target))
-      .map(e => ({
-        id: `${e.source}->${e.target}`,
+    const rfEdges: Edge[] = layout.edges.map(e => {
+      const style = EDGE_STYLES[e.kind] || EDGE_STYLES.renders;
+      return {
+        id: `${e.source}->${e.target}:${e.kind}`,
         source: e.source,
         target: e.target,
-        style: { stroke: "#e8e8e8", strokeWidth: 1 },
+        style: {
+          stroke: style.stroke,
+          strokeWidth: style.strokeWidth,
+          strokeDasharray: style.strokeDasharray,
+        },
         animated: false,
-      }));
+      };
+    });
 
     return { nodes: rfNodes, edges: rfEdges };
   }, [selectedNode]);
@@ -100,13 +117,13 @@ export function GraphView() {
       nodeTypes={nodeTypes}
       onNodeClick={onNodeClick}
       fitView
-      fitViewOptions={{ padding: 0.3 }}
+      fitViewOptions={{ padding: 0.2 }}
       minZoom={0.1}
       maxZoom={3}
       proOptions={{ hideAttribution: true }}
       defaultEdgeOptions={{ type: "default" }}
     >
-      <Background color="#f0f0f0" gap={40} />
+      <Background color="#f5f5f5" gap={40} />
       <Controls showInteractive={false} />
     </ReactFlow>
   );

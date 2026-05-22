@@ -1,51 +1,86 @@
 import React from "react";
-import { useStore, DATA, fileMatchesPattern } from "../state.js";
+import { useStore, DATA, getNodeStatus } from "../state.js";
 
 export function ReadingOrder() {
   const { readingOrder, selectedNode, selectedFile, setSelectedFile } = useStore();
 
   let files = readingOrder;
 
+  // If a node is selected, show only its file
   if (selectedNode) {
     const node = DATA.topology.nodes.find(n => n.id === selectedNode);
     if (node) {
-      files = files.filter(f => node.files.some(p => fileMatchesPattern(f, p)));
+      files = files.filter(f => f === node.filePath);
+      if (files.length === 0) files = [node.filePath];
     }
-  }
-
-  function getFileStatus(file: string): string {
-    for (const nd of DATA.git.committed) {
-      const found = nd.files.find(f => f.file === file);
-      if (found) return found.status;
-    }
-    const staged = DATA.git.staged.find(f => f.file === file);
-    if (staged) return staged.status;
-    const unstaged = DATA.git.unstaged.find(f => f.file === file);
-    if (unstaged) return unstaged.status;
-    return "M";
   }
 
   if (files.length === 0) {
-    return <div className="reading-order" style={{ display: "flex", alignItems: "center", justifyContent: "center", color: "#999" }}>No files</div>;
+    return (
+      <div className="reading-order" style={{ display: "flex", alignItems: "center", justifyContent: "center", color: "#999", fontSize: 12 }}>
+        No changes
+      </div>
+    );
   }
+
+  // Group by kind
+  const groups = groupByKind(files);
 
   return (
     <div className="reading-order">
-      {files.map((file, i) => {
-        const name = file.split("/").pop();
-        const status = getFileStatus(file);
-        return (
-          <div
-            key={file}
-            className={"reading-file" + (selectedFile === file ? " selected" : "")}
-            onClick={() => setSelectedFile(file)}
-          >
-            <span className="reading-file-idx">{i + 1}</span>
-            <span className="reading-file-name" title={file}>{name}</span>
-            <span className={"reading-file-status " + status}>{status}</span>
-          </div>
-        );
-      })}
+      {groups.map(group => (
+        <div key={group.kind} className="reading-group">
+          <div className="reading-group-title">{group.kind}</div>
+          {group.items.map((item, i) => (
+            <div
+              key={item.filePath}
+              className={"reading-file" + (selectedFile === item.filePath ? " selected" : "")}
+              onClick={() => setSelectedFile(item.filePath)}
+            >
+              <span className="reading-file-idx">{item.index}</span>
+              <span className="reading-file-name" title={item.filePath}>{item.name}</span>
+              <span className={"reading-file-status " + item.status}>{item.status === "changed" ? "●" : "○"}</span>
+            </div>
+          ))}
+        </div>
+      ))}
     </div>
   );
+}
+
+interface GroupItem {
+  filePath: string;
+  name: string;
+  status: string;
+  index: number;
+}
+
+function groupByKind(files: string[]): { kind: string; items: GroupItem[] }[] {
+  const kindOrder = ["Stores", "Hooks", "Contexts", "Components", "Pages"];
+  const groups = new Map<string, GroupItem[]>();
+
+  let idx = 1;
+  for (const filePath of files) {
+    const nodes = DATA.topology.nodes.filter(n => n.filePath === filePath);
+    const primaryNode = nodes[0];
+    if (!primaryNode) continue;
+
+    const groupName = primaryNode.kind === "store" ? "Stores"
+      : primaryNode.kind === "hook" ? "Hooks"
+      : primaryNode.kind === "context" ? "Contexts"
+      : primaryNode.kind === "page" ? "Pages"
+      : "Components";
+
+    if (!groups.has(groupName)) groups.set(groupName, []);
+    groups.get(groupName)!.push({
+      filePath,
+      name: primaryNode.name,
+      status: getNodeStatus(primaryNode.id),
+      index: idx++,
+    });
+  }
+
+  return kindOrder
+    .filter(k => groups.has(k))
+    .map(k => ({ kind: k, items: groups.get(k)! }));
 }

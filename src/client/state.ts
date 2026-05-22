@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { WatchData, FileHunk, NodeDiff } from "./types.js";
+import type { WatchData, ReactNode } from "./types.js";
 
 export let DATA: WatchData;
 
@@ -14,7 +14,7 @@ interface DifferState {
   setDrawerOpen: (open: boolean) => void;
 }
 
-export const useStore = create<DifferState>((set, get) => ({
+export const useStore = create<DifferState>((set) => ({
   selectedNode: null,
   selectedFile: null,
   drawerOpen: false,
@@ -51,110 +51,73 @@ export function updateData(data: WatchData) {
 }
 
 function computeReadingOrder(data: WatchData): string[] {
-  const { topology, git } = data;
-  const allFiles = new Set<string>();
+  const { topology, blastRadius, git } = data;
+  const changedIds = new Set(blastRadius.changed);
 
-  git.committed.forEach(nd => nd.files.forEach(f => allFiles.add(f.file)));
-  git.staged.forEach(f => allFiles.add(f.file));
-  git.unstaged.forEach(f => allFiles.add(f.file));
+  // Get changed nodes, grouped by kind priority
+  const changedNodes = topology.nodes.filter(n => changedIds.has(n.id));
 
-  // Sort by topology order (upstream first based on edges)
-  const nodeOrder = topoSort(topology.nodes.map(n => n.id), topology.edges);
-  const nodeIndex = new Map(nodeOrder.map((id, i) => [id, i]));
+  // Priority: stores(1) > hooks(2) > components leaf-first(3) > pages(4)
+  const kindPriority: Record<string, number> = {
+    store: 1,
+    hook: 2,
+    context: 3,
+    component: 4,
+    page: 5,
+  };
 
-  const files = [...allFiles];
-  files.sort((a, b) => {
-    const nodeA = getOwnerNode(a);
-    const nodeB = getOwnerNode(b);
-    const idxA = nodeA ? (nodeIndex.get(nodeA) ?? 999) : 999;
-    const idxB = nodeB ? (nodeIndex.get(nodeB) ?? 999) : 999;
-    if (idxA !== idxB) return idxA - idxB;
-    return a.localeCompare(b);
+  changedNodes.sort((a, b) => {
+    const pa = kindPriority[a.kind] ?? 99;
+    const pb = kindPriority[b.kind] ?? 99;
+    if (pa !== pb) return pa - pb;
+    return a.name.localeCompare(b.name);
   });
+
+  // Collect unique file paths from changed nodes
+  const files: string[] = [];
+  const seen = new Set<string>();
+
+  for (const node of changedNodes) {
+    if (!seen.has(node.filePath)) {
+      seen.add(node.filePath);
+      files.push(node.filePath);
+    }
+  }
+
+  // Add affected (but not changed) files at the end
+  const affectedIds = new Set(blastRadius.affected);
+  const affectedNodes = topology.nodes
+    .filter(n => affectedIds.has(n.id))
+    .sort((a, b) => (kindPriority[a.kind] ?? 99) - (kindPriority[b.kind] ?? 99));
+
+  for (const node of affectedNodes) {
+    if (!seen.has(node.filePath)) {
+      seen.add(node.filePath);
+      files.push(node.filePath);
+    }
+  }
 
   return files;
 }
 
-function topoSort(nodeIds: string[], edges: { from: string; to: string }[]): string[] {
-  const adj = new Map<string, string[]>();
-  const inDeg = new Map<string, number>();
-
-  for (const id of nodeIds) {
-    adj.set(id, []);
-    inDeg.set(id, 0);
-  }
-
-  for (const e of edges) {
-    if (adj.has(e.from) && inDeg.has(e.to)) {
-      adj.get(e.from)!.push(e.to);
-      inDeg.set(e.to, (inDeg.get(e.to) ?? 0) + 1);
-    }
-  }
-
-  const queue = nodeIds.filter(id => (inDeg.get(id) ?? 0) === 0);
-  const result: string[] = [];
-
-  while (queue.length > 0) {
-    const node = queue.shift()!;
-    result.push(node);
-    for (const next of adj.get(node) ?? []) {
-      const deg = (inDeg.get(next) ?? 1) - 1;
-      inDeg.set(next, deg);
-      if (deg === 0) queue.push(next);
-    }
-  }
-
-  // Add any remaining (cycles)
-  for (const id of nodeIds) {
-    if (!result.includes(id)) result.push(id);
-  }
-
-  return result;
-}
-
-export function getOwnerNode(filePath: string): string | null {
-  for (const node of DATA.topology.nodes) {
-    if (node.files.some(p => fileMatchesPattern(filePath, p))) return node.id;
-  }
-  return null;
-}
-
-export function getNodeStatus(id: string): "changed" | "unchanged" {
-  const hasCommitted = DATA.git.committed.some(nd => nd.nodeId === id);
-  if (hasCommitted) return "changed";
-
-  const node = DATA.topology.nodes.find(n => n.id === id);
-  if (!node) return "unchanged";
-
-  const hasStaged = DATA.git.staged.some(f => node.files.some(p => fileMatchesPattern(f.file, p)));
-  if (hasStaged) return "changed";
-
-  const hasUnstaged = DATA.git.unstaged.some(f => node.files.some(p => fileMatchesPattern(f.file, p)));
-  if (hasUnstaged) return "changed";
-
+export function getNodeStatus(id: string): "changed" | "affected" | "unchanged" {
+  if (DATA.blastRadius.changed.includes(id)) return "changed";
+  if (DATA.blastRadius.affected.includes(id)) return "affected";
   return "unchanged";
 }
 
-export function getNodeActivity(id: string): { committed: number; staged: number; unstaged: number } {
-  const node = DATA.topology.nodes.find(n => n.id === id);
-  if (!node) return { committed: 0, staged: 0, unstaged: 0 };
-
-  const committed = DATA.git.committed
-    .filter(nd => nd.nodeId === id)
-    .reduce((s, nd) => s + nd.files.length, 0);
-
-  const staged = DATA.git.staged
-    .filter(f => node.files.some(p => fileMatchesPattern(f.file, p)))
-    .length;
-
-  const unstaged = DATA.git.unstaged
-    .filter(f => node.files.some(p => fileMatchesPattern(f.file, p)))
-    .length;
-
-  return { committed, staged, unstaged };
+export function getNodeById(id: string): ReactNode | undefined {
+  return DATA.topology.nodes.find(n => n.id === id);
 }
 
-export function fileMatchesPattern(file: string, pattern: string): boolean {
-  const re = pattern.replace(/\./g, "\\.").replace(/\*\*\//g, "(.+/)?").replace(/\*\*/g, ".*").replace(/\*/g, "[^/]*");
-  return new RegExp("^" + re + "$").test(file);
+export function getNodeEdges(id: string) {
+  const renders = DATA.topology.edges.filter(e => e.from === id && e.kind === "renders");
+  const renderedBy = DATA.topology.edges.filter(e => e.to === id && e.kind === "renders");
+  const usesHooks = DATA.topology.edges.filter(e => e.from === id && e.kind === "uses-hook");
+  const calledBy = DATA.topology.edges.filter(e => e.to === id && e.kind === "uses-hook");
+  const subscribesTo = DATA.topology.edges.filter(e => e.from === id && e.kind === "subscribes");
+  const subscribers = DATA.topology.edges.filter(e => e.to === id && e.kind === "subscribes");
+  const provides = DATA.topology.edges.filter(e => e.from === id && e.kind === "provides");
+
+  return { renders, renderedBy, usesHooks, calledBy, subscribesTo, subscribers, provides };
 }

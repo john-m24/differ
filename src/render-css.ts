@@ -253,4 +253,130 @@ body {
 .diff-unified td.code { width: auto; }
 .diff-unified tr.add td.code { background: var(--diff-add-bg); color: var(--diff-add-text); }
 .diff-unified tr.del td.code { background: var(--diff-del-bg); color: var(--diff-del-text); }
+
+/* Status bar semantic counts */
+.status-separator { color: var(--text-tertiary); }
+.status-routes { color: #d97706; }
+
+/* Drawer kind badge */
+.drawer-kind-badge {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 3px;
+  letter-spacing: 0.5px;
+}
+.drawer-kind-badge.component { background: #eff6ff; color: #2563eb; }
+.drawer-kind-badge.hook { background: #eff6ff; color: #6366f1; }
+.drawer-kind-badge.store { background: #faf5ff; color: #7c3aed; }
+.drawer-kind-badge.page { background: #ecfdf5; color: #059669; }
+.drawer-kind-badge.context { background: #fefce8; color: #ca8a04; }
+
+/* Drawer detail panel */
+.drawer-detail-panel {
+  width: 320px;
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+/* Reading order groups */
+.reading-group-title {
+  padding: 6px 16px 2px;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-tertiary);
+}
+.reading-file-status.changed { color: var(--accent); }
+.reading-file-status.affected { color: #d97706; }
+.reading-file-status.unchanged { color: var(--text-tertiary); }
+
+/* Node detail panel */
+.node-detail { padding: 12px 16px; }
+.node-detail-empty { padding: 24px; color: var(--text-tertiary); text-align: center; }
+.node-detail-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.node-detail-kind {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+.node-detail-kind.component { background: #eff6ff; color: #2563eb; }
+.node-detail-kind.hook { background: #eff6ff; color: #6366f1; }
+.node-detail-kind.store { background: #faf5ff; color: #7c3aed; }
+.node-detail-kind.page { background: #ecfdf5; color: #059669; }
+.node-detail-kind.context { background: #fefce8; color: #ca8a04; }
+.node-detail-name { font-weight: 500; font-size: 13px; }
+.node-detail-route { font-size: 11px; color: var(--text-secondary); font-family: 'SF Mono', monospace; }
+.node-detail-status { font-size: 9px; font-weight: 600; margin-left: auto; }
+.node-detail-status.changed { color: var(--accent); }
+.node-detail-status.affected { color: #d97706; }
+.node-detail-file {
+  font-size: 11px;
+  font-family: 'SF Mono', monospace;
+  color: var(--text-tertiary);
+  margin-bottom: 12px;
+}
+
+.node-detail-sections { display: flex; flex-direction: column; gap: 12px; }
+.node-detail-section-title {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--text-tertiary);
+  margin-bottom: 4px;
+}
+
+.node-detail-prop {
+  font-size: 11px;
+  font-family: 'SF Mono', monospace;
+  padding: 2px 0;
+  display: flex;
+  gap: 4px;
+}
+.prop-name { color: var(--text); }
+.prop-optional { color: var(--text-tertiary); }
+.prop-type { color: var(--text-secondary); }
+
+.node-detail-store-key {
+  font-size: 11px;
+  font-family: 'SF Mono', monospace;
+  padding: 2px 0;
+  color: var(--text);
+}
+
+.node-detail-subscription { display: flex; align-items: center; gap: 6px; }
+.subscribed-keys { font-size: 10px; color: var(--text-tertiary); font-family: 'SF Mono', monospace; }
+
+.node-link {
+  font-size: 11px;
+  padding: 2px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.node-link.changed .node-link-name { color: var(--accent); }
+.node-link.affected .node-link-name { color: #d97706; }
+.node-link-kind {
+  font-size: 9px;
+  width: 12px;
+  height: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.node-link-kind.component { background: #eff6ff; color: #2563eb; }
+.node-link-kind.hook { background: #eff6ff; color: #6366f1; }
+.node-link-kind.store { background: #faf5ff; color: #7c3aed; }
+.node-link-kind.page { background: #ecfdf5; color: #059669; }
+.node-link-kind.context { background: #fefce8; color: #ca8a04; }
+.node-link-name { color: var(--text); }
 `;

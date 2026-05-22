@@ -1,11 +1,10 @@
 import dagre from "@dagrejs/dagre";
 const { Graph } = dagre.graphlib;
-import type { Topology } from "./types.js";
-import type { NodeDiff } from "./diff.js";
+import type { ReactTopology, ReactNode, ReactNodeKind } from "./react-ast/types.js";
+import type { BlastRadius } from "./blast-radius.js";
 
 export interface LayoutNode {
   id: string;
-  path: string;
   x: number;
   y: number;
   width: number;
@@ -15,7 +14,7 @@ export interface LayoutNode {
 export interface LayoutEdge {
   source: string;
   target: string;
-  weight: number;
+  kind: string;
   points: { x: number; y: number }[];
 }
 
@@ -26,42 +25,50 @@ export interface GraphLayout {
   height: number;
 }
 
+const NODE_SIZES: Record<ReactNodeKind, { width: number; height: number }> = {
+  page: { width: 140, height: 40 },
+  component: { width: 120, height: 34 },
+  hook: { width: 110, height: 30 },
+  store: { width: 120, height: 36 },
+  context: { width: 110, height: 34 },
+};
+
 export function computeLayout(
-  topology: Topology,
-  nodeDiffs?: NodeDiff[]
+  topology: ReactTopology,
+  blastRadius?: BlastRadius
 ): GraphLayout {
   const g = new Graph();
-  g.setGraph({ rankdir: "LR", nodesep: 30, ranksep: 60, marginx: 30, marginy: 30 });
+  g.setGraph({
+    rankdir: "TB",
+    nodesep: 30,
+    ranksep: 50,
+    marginx: 30,
+    marginy: 30,
+  });
   g.setDefaultEdgeLabel(() => ({}));
 
-  const diffNodeIds = new Set((nodeDiffs || []).map((nd) => nd.nodeId));
-
   for (const node of topology.nodes) {
-    const label = node.id.split("/").pop() || node.id;
-    const baseWidth = Math.max(90, label.length * 7 + 30);
-    const baseHeight = 34;
-    const scale = diffNodeIds.has(node.id) ? 1.1 : 1;
-
+    const size = NODE_SIZES[node.kind];
+    const labelWidth = Math.max(size.width, node.name.length * 8 + 24);
     g.setNode(node.id, {
-      width: baseWidth * scale,
-      height: baseHeight * scale,
-      label: node.id,
+      width: labelWidth,
+      height: size.height,
+      label: node.name,
     });
   }
 
-  for (const e of topology.edges) {
-    if (g.hasNode(e.from) && g.hasNode(e.to)) {
-      g.setEdge(e.from, e.to);
+  for (const edge of topology.edges) {
+    if (g.hasNode(edge.from) && g.hasNode(edge.to)) {
+      g.setEdge(edge.from, edge.to);
     }
   }
 
   dagre.layout(g);
 
-  const layoutNodes: LayoutNode[] = topology.nodes.map((node) => {
+  const layoutNodes: LayoutNode[] = topology.nodes.map(node => {
     const n = g.node(node.id);
     return {
       id: node.id,
-      path: node.path,
       x: n.x,
       y: n.y,
       width: n.width,
@@ -70,14 +77,14 @@ export function computeLayout(
   });
 
   const layoutEdges: LayoutEdge[] = [];
-  for (const e of topology.edges) {
-    if (!g.hasNode(e.from) || !g.hasNode(e.to)) continue;
-    const edgeData = g.edge(e.from, e.to);
+  for (const edge of topology.edges) {
+    if (!g.hasNode(edge.from) || !g.hasNode(edge.to)) continue;
+    const edgeData = g.edge(edge.from, edge.to);
     if (!edgeData) continue;
     layoutEdges.push({
-      source: e.from,
-      target: e.to,
-      weight: e.weight || 1,
+      source: edge.from,
+      target: edge.to,
+      kind: edge.kind,
       points: edgeData.points || [],
     });
   }

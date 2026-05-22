@@ -1,48 +1,39 @@
-export interface TopologyNode {
+export type ReactNodeKind = "page" | "component" | "hook" | "store" | "context";
+
+export interface ReactNode {
   id: string;
-  path: string;
-  files: string[];
+  kind: ReactNodeKind;
+  name: string;
+  filePath: string;
+  line: number;
+  exported: boolean;
+  props?: PropSignature[];
+  route?: string;
+  storeKeys?: string[];
 }
 
-export interface TopologyEdge {
+export interface PropSignature {
+  name: string;
+  type: string;
+  optional: boolean;
+}
+
+export type ReactEdgeKind = "renders" | "uses-hook" | "subscribes" | "provides";
+
+export interface ReactEdge {
   from: string;
   to: string;
-  weight: number;
+  kind: ReactEdgeKind;
+  subscribedKeys?: string[];
 }
 
-export interface Topology {
-  nodes: TopologyNode[];
-  edges: TopologyEdge[];
-}
-
-export interface FileHunk {
-  file: string;
-  hunks: string;
-  status: "A" | "D" | "M" | "R";
-}
-
-export interface NodeDiff {
-  nodeId: string;
-  files: FileHunk[];
-}
-
-export interface CommitFile {
-  path: string;
-  status: "A" | "D" | "M" | "R";
-}
-
-export interface CommitInfo {
-  hash: string;
-  shortHash: string;
-  message: string;
-  author: string;
-  date: string;
-  files: CommitFile[];
+export interface ReactTopology {
+  nodes: ReactNode[];
+  edges: ReactEdge[];
 }
 
 export interface LayoutNode {
   id: string;
-  path: string;
   x: number;
   y: number;
   width: number;
@@ -52,7 +43,7 @@ export interface LayoutNode {
 export interface LayoutEdge {
   source: string;
   target: string;
-  weight: number;
+  kind: string;
   points: { x: number; y: number }[];
 }
 
@@ -63,19 +54,47 @@ export interface GraphLayout {
   height: number;
 }
 
-export type GitLayer = "committed" | "staged" | "unstaged";
+export interface BlastRadius {
+  changed: string[];
+  affected: string[];
+  affectedRoutes: string[];
+  risks: RiskSignal[];
+}
+
+export interface RiskSignal {
+  kind: "props-changed" | "hook-signature-changed" | "store-shape-changed";
+  nodeId: string;
+  detail: string;
+}
+
+export interface FileHunk {
+  file: string;
+  hunks: string;
+  status: "A" | "D" | "M" | "R";
+}
+
+export interface CommitInfo {
+  hash: string;
+  shortHash: string;
+  message: string;
+  author: string;
+  date: string;
+  files: { path: string; status: string }[];
+}
 
 export interface GitState {
   branch: string;
   base: string;
-  committed: NodeDiff[];
+  committed: FileHunk[];
   staged: FileHunk[];
   unstaged: FileHunk[];
   commits: CommitInfo[];
+  changedFiles: string[];
 }
 
 export interface WatchData {
-  topology: Topology;
+  topology: ReactTopology;
   layout: GraphLayout;
+  blastRadius: BlastRadius;
   git: GitState;
 }

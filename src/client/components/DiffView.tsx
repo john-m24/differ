@@ -1,5 +1,6 @@
 import React from "react";
-import { useStore, getOwnerNode, DATA } from "../state.js";
+import { useStore, DATA, getNodeById } from "../state.js";
+import type { FileHunk } from "../types.js";
 
 interface DiffRow {
   type: "hunk" | "ctx" | "add" | "del" | "change";
@@ -93,30 +94,27 @@ export function DiffView() {
     return <div className="diff-panel"><div className="diff-empty">Select a file</div></div>;
   }
 
-  let fileHunk = null;
-  for (const nd of DATA.git.committed) {
-    const found = nd.files.find(f => f.file === selectedFile);
-    if (found) { fileHunk = found; break; }
-  }
-  if (!fileHunk) {
-    fileHunk = DATA.git.staged.find(f => f.file === selectedFile) || null;
-  }
-  if (!fileHunk) {
-    fileHunk = DATA.git.unstaged.find(f => f.file === selectedFile) || null;
-  }
+  // Find the hunk in committed, staged, or unstaged
+  let fileHunk: FileHunk | null = null;
+  fileHunk = DATA.git.committed.find(f => f.file === selectedFile) || null;
+  if (!fileHunk) fileHunk = DATA.git.staged.find(f => f.file === selectedFile) || null;
+  if (!fileHunk) fileHunk = DATA.git.unstaged.find(f => f.file === selectedFile) || null;
 
   if (!fileHunk) {
     return <div className="diff-panel"><div className="diff-empty">No diff for {selectedFile}</div></div>;
   }
 
-  const owner = getOwnerNode(selectedFile);
+  // Find owning node
+  const ownerNode = DATA.topology.nodes.find(n => n.filePath === selectedFile);
 
   return (
     <div className="diff-panel">
       <div className="diff-header">
         <span className="diff-header-path">{selectedFile}</span>
-        {owner && (
-          <span className="diff-header-node" onClick={() => setSelectedNode(owner)}>{owner}</span>
+        {ownerNode && (
+          <span className="diff-header-node" onClick={() => setSelectedNode(ownerNode.id)}>
+            {ownerNode.name}
+          </span>
         )}
       </div>
       {fileHunk.status === "A" ? (

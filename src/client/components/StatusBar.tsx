@@ -2,10 +2,13 @@ import React from "react";
 import { DATA } from "../state.js";
 
 export function StatusBar() {
-  const { git } = DATA;
-  const stagedCount = git.staged.length;
-  const unstagedCount = git.unstaged.length;
-  const committedCount = git.committed.reduce((s, nd) => s + nd.files.length, 0);
+  const { git, blastRadius, topology } = DATA;
+
+  const changedNodes = topology.nodes.filter(n => blastRadius.changed.includes(n.id));
+  const components = changedNodes.filter(n => n.kind === "component" || n.kind === "page").length;
+  const hooks = changedNodes.filter(n => n.kind === "hook").length;
+  const stores = changedNodes.filter(n => n.kind === "store").length;
+  const routes = blastRadius.affectedRoutes.length;
 
   return (
     <div className="status-bar">
@@ -15,23 +18,12 @@ export function StatusBar() {
       <div className="status-dot" />
       <span className="status-label">watching</span>
       <div className="status-counts">
-        {committedCount > 0 && (
-          <span className="status-count">
-            <span className="status-count-dot committed" />
-            {committedCount} committed
-          </span>
-        )}
-        {stagedCount > 0 && (
-          <span className="status-count">
-            <span className="status-count-dot staged" />
-            {stagedCount} staged
-          </span>
-        )}
-        {unstagedCount > 0 && (
-          <span className="status-count">
-            <span className="status-count-dot unstaged" />
-            {unstagedCount} unstaged
-          </span>
+        {components > 0 && <span className="status-count">{components} component{components !== 1 ? "s" : ""}</span>}
+        {hooks > 0 && <span className="status-count">{hooks} hook{hooks !== 1 ? "s" : ""}</span>}
+        {stores > 0 && <span className="status-count">{stores} store{stores !== 1 ? "s" : ""}</span>}
+        {(components > 0 || hooks > 0 || stores > 0) && <span className="status-separator">changed</span>}
+        {routes > 0 && (
+          <span className="status-count status-routes">{routes} route{routes !== 1 ? "s" : ""} affected</span>
         )}
       </div>
     </div>

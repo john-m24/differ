@@ -4,12 +4,15 @@ import { readFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { captureDiff, captureCommits, mapDiffsToNodes } from "./diff.js";
+import { captureDiff, captureCommits, mapDiffsToNodes, parseDiff } from "./diff.js";
 import { computeLayout } from "./layout.js";
 import { startWatcher } from "./watcher.js";
+import { computeReactTopology } from "./react-topology.js";
+import { computeBlastRadius } from "./blast-radius.js";
+import { isReactProject } from "./react-ast/parser.js";
 import { computeTopology } from "./topology.js";
 import { CSS } from "./render-css.js";
-import type { Topology } from "./types.js";
+import type { ReactTopology } from "./react-ast/types.js";
 
 export interface WatchOptions {
   base: string;
@@ -22,38 +25,82 @@ export function startWatchServer(opts: WatchOptions) {
   const app = new Hono();
   const clients: Set<WritableStreamDefaultWriter> = new Set();
   const cwd = process.cwd();
+  const useReact = isReactProject(cwd);
 
-  function loadTopology(): Topology {
-    return computeTopology(cwd);
+  let cachedTopology: ReactTopology | null = null;
+
+  function getTopology(): ReactTopology {
+    if (!cachedTopology) {
+      if (useReact) {
+        cachedTopology = computeReactTopology(cwd);
+      } else {
+        // Fallback: convert file-level topology to ReactTopology shape
+        const topo = computeTopology(cwd);
+        cachedTopology = {
+          nodes: topo.nodes.map(n => ({
+            id: n.id,
+            kind: "component" as const,
+            name: n.id.split("/").pop() || n.id,
+            filePath: n.path || n.files[0] || n.id,
+            line: 1,
+            exported: true,
+          })),
+          edges: topo.edges.map(e => ({
+            from: e.from,
+            to: e.to,
+            kind: "renders" as const,
+          })),
+        };
+      }
+    }
+    return cachedTopology;
+  }
+
+  function getChangedFiles(): string[] {
+    const files = new Set<string>();
+    // Committed changes
+    try {
+      const raw = execSync(`git diff --name-only ${opts.base}...HEAD`, { cwd, encoding: "utf-8", maxBuffer: 10 * 1024 * 1024 });
+      raw.trim().split("\n").filter(Boolean).forEach(f => files.add(f));
+    } catch {}
+    // Staged
+    try {
+      const raw = execSync("git diff --cached --name-only", { cwd, encoding: "utf-8" });
+      raw.trim().split("\n").filter(Boolean).forEach(f => files.add(f));
+    } catch {}
+    // Unstaged
+    try {
+      const raw = execSync("git diff --name-only", { cwd, encoding: "utf-8" });
+      raw.trim().split("\n").filter(Boolean).forEach(f => files.add(f));
+    } catch {}
+    return [...files];
   }
 
   function computeState() {
-    const topology = loadTopology();
+    const topology = getTopology();
+    const changedFiles = getChangedFiles();
+    const blastRadius = computeBlastRadius(topology, changedFiles);
+    const layout = computeLayout(topology, blastRadius);
     const branch = getCurrentBranch(cwd);
 
-    // Committed changes (base...HEAD)
+    // Git state for diff viewing
     const committedDiffs = captureDiff(opts.base, cwd);
-    const committed = committedDiffs.length > 0 ? mapDiffsToNodes(committedDiffs, topology) : [];
-    const commits = captureCommits(opts.base, cwd);
-
-    // Staged changes
     const staged = captureStagedDiff(cwd);
-
-    // Unstaged changes
     const unstaged = captureUnstagedDiff(cwd);
-
-    const layout = computeLayout(topology, committed);
+    const commits = captureCommits(opts.base, cwd);
 
     return {
       topology,
       layout,
+      blastRadius,
       git: {
         branch,
         base: opts.base,
-        committed,
+        committed: committedDiffs,
         staged,
         unstaged,
         commits,
+        changedFiles,
       },
     };
   }
@@ -101,24 +148,30 @@ export function startWatchServer(opts: WatchOptions) {
     return c.html(html);
   });
 
-  const topology = loadTopology();
+  // Use the old topology for file watching (it knows about file patterns)
+  const fileTopology = computeTopology(cwd);
 
   startWatcher({
     cwd,
-    topology,
+    topology: fileTopology,
     debounceMs: opts.debounceMs,
     onChange: (changedFiles) => {
       console.log(`[watch] ${changedFiles.length} file(s) changed`);
+      // Invalidate topology cache so it re-parses
+      cachedTopology = null;
       pushState();
     },
   });
 
-  // Also poll for git state changes (commits, staging) every 2s
+  // Poll for git state changes (commits, staging) every 2s
   setInterval(() => {
     pushState();
   }, 2000);
 
   console.log(`Differ watch → http://localhost:${opts.port}`);
+  if (useReact) {
+    console.log(`[watch] React project detected — using semantic topology`);
+  }
   serve({ fetch: app.fetch, port: opts.port });
 }
 
@@ -177,7 +230,7 @@ function captureStagedDiff(cwd: string): { file: string; hunks: string; status: 
   try {
     const raw = execSync("git diff --cached", { cwd, encoding: "utf-8", maxBuffer: 10 * 1024 * 1024 });
     if (!raw.trim()) return [];
-    return parseDiffOutput(raw);
+    return parseDiff(raw);
   } catch {
     return [];
   }
@@ -187,34 +240,8 @@ function captureUnstagedDiff(cwd: string): { file: string; hunks: string; status
   try {
     const raw = execSync("git diff", { cwd, encoding: "utf-8", maxBuffer: 10 * 1024 * 1024 });
     if (!raw.trim()) return [];
-    return parseDiffOutput(raw);
+    return parseDiff(raw);
   } catch {
     return [];
   }
-}
-
-function parseDiffOutput(raw: string): { file: string; hunks: string; status: "A" | "D" | "M" | "R" }[] {
-  const files: { file: string; hunks: string; status: "A" | "D" | "M" | "R" }[] = [];
-  const fileSections = raw.split(/^diff --git /m).slice(1);
-
-  for (const section of fileSections) {
-    const lines = section.split("\n");
-    const headerMatch = lines[0]?.match(/a\/(.+?) b\/(.+)/);
-    if (!headerMatch) continue;
-
-    const file = headerMatch[2];
-    const hunkStart = lines.findIndex((l) => l.startsWith("@@"));
-    if (hunkStart === -1) continue;
-
-    let status: "A" | "D" | "M" | "R" = "M";
-    const preamble = lines.slice(0, hunkStart).join("\n");
-    if (preamble.includes("new file mode")) status = "A";
-    else if (preamble.includes("deleted file mode")) status = "D";
-    else if (preamble.includes("rename from")) status = "R";
-
-    const hunks = lines.slice(hunkStart).join("\n");
-    files.push({ file, hunks, status });
-  }
-
-  return files;
 }
