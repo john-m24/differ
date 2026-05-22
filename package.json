@@ -17,9 +17,11 @@
   "dependencies": {
     "@dagrejs/dagre": "^3.0.0",
     "@hono/node-server": "^2.0.2",
+    "@preact/signals": "^2.9.0",
     "better-sqlite3": "^12.10.0",
     "commander": "^14.0.3",
-    "hono": "^4.12.18"
+    "hono": "^4.12.18",
+    "preact": "^10.29.2"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
