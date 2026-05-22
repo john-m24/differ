@@ -1,109 +1,115 @@
 import { create } from "zustand";
-import type { AppData, FileHunk } from "./types.js";
+import type { WatchData, FileHunk, NodeDiff } from "./types.js";
 
-export let DATA: AppData;
+export let DATA: WatchData;
 
 interface DifferState {
-  commitRange: [number, number];
   selectedNode: string | null;
   selectedFile: string | null;
-  activeFilters: Set<string>;
-  activeFiles: Set<string>;
-  activeFileHunks: FileHunk[];
-  activeNodeIds: Set<string>;
+  drawerOpen: boolean;
+  readingOrder: string[];
 
-  setCommitRange: (range: [number, number]) => void;
   setSelectedNode: (id: string | null) => void;
   setSelectedFile: (path: string | null) => void;
-  toggleFilter: (status: string) => void;
-}
-
-function recompute(commitRange: [number, number]) {
-  const { commits, nodeDiffs } = DATA;
-  if (!commits || commits.length === 0) {
-    return {
-      activeFiles: new Set(nodeDiffs.flatMap(nd => nd.files.map(f => f.file))),
-      activeFileHunks: nodeDiffs.flatMap(nd => nd.files),
-      activeNodeIds: new Set(nodeDiffs.map(nd => nd.nodeId)),
-    };
-  }
-
-  const [start, end] = commitRange;
-  const selected = commits.slice(start, end + 1);
-  const files = new Set<string>();
-  selected.forEach(c => c.files.forEach(f => files.add(f.path)));
-
-  const hunks: FileHunk[] = [];
-  nodeDiffs.forEach(nd => {
-    nd.files.forEach(f => { if (files.has(f.file)) hunks.push(f); });
-  });
-
-  const nodeIds = new Set<string>();
-  nodeDiffs.forEach(nd => {
-    if (nd.files.some(f => files.has(f.file))) nodeIds.add(nd.nodeId);
-  });
-
-  return { activeFiles: files, activeFileHunks: hunks, activeNodeIds: nodeIds };
+  setDrawerOpen: (open: boolean) => void;
 }
 
 export const useStore = create<DifferState>((set, get) => ({
-  commitRange: [0, 0],
   selectedNode: null,
   selectedFile: null,
-  activeFilters: new Set(["changed", "added", "removed", "blast-radius"]),
-  activeFiles: new Set<string>(),
-  activeFileHunks: [],
-  activeNodeIds: new Set<string>(),
-
-  setCommitRange: (range) => {
-    const derived = recompute(range);
-    const state = get();
-    const selectedFile = state.selectedFile && derived.activeFiles.has(state.selectedFile)
-      ? state.selectedFile : null;
-    set({ commitRange: range, ...derived, selectedFile });
-  },
+  drawerOpen: false,
+  readingOrder: [],
 
   setSelectedNode: (id) => {
     if (id) {
-      const node = DATA.topology.nodes.find(n => n.id === id);
-      if (node) {
-        const state = get();
-        const firstFile = state.activeFileHunks.find(f =>
-          node.files.some(p => fileMatchesPattern(f.file, p))
-        );
-        set({ selectedNode: id, selectedFile: firstFile?.file || null });
-        return;
-      }
+      set({ selectedNode: id, drawerOpen: true, selectedFile: null });
+    } else {
+      set({ selectedNode: null, drawerOpen: false, selectedFile: null });
     }
-    set({ selectedNode: id });
   },
 
-  setSelectedFile: (path) => set({ selectedFile: path }),
+  setSelectedFile: (path) => {
+    set({ selectedFile: path, drawerOpen: true });
+  },
 
-  toggleFilter: (status) => {
-    const current = get().activeFilters;
-    const next = new Set(current);
-    if (next.has(status)) next.delete(status);
-    else next.add(status);
-    set({ activeFilters: next });
+  setDrawerOpen: (open) => {
+    if (!open) set({ drawerOpen: false, selectedNode: null, selectedFile: null });
+    else set({ drawerOpen: open });
   },
 }));
 
-export function initData(data: AppData) {
+export function initData(data: WatchData) {
   DATA = data;
-  const range: [number, number] = [0, Math.max(0, (data.commits || []).length - 1)];
-  const derived = recompute(range);
-  useStore.setState({ commitRange: range, ...derived });
+  const order = computeReadingOrder(data);
+  useStore.setState({ readingOrder: order });
 }
 
-export function getStatus(id: string): string {
-  const { delta, nodeDiffs } = DATA;
-  if (delta.added.includes(id)) return "added";
-  if (delta.removed.includes(id)) return "removed";
-  if (delta.changed.some(c => c.id === id)) return "changed";
-  if (delta.blast_radius.includes(id)) return "blast-radius";
-  if (nodeDiffs.some(nd => nd.nodeId === id)) return "changed";
-  return "unchanged";
+export function updateData(data: WatchData) {
+  DATA = data;
+  const order = computeReadingOrder(data);
+  useStore.setState({ readingOrder: order });
+}
+
+function computeReadingOrder(data: WatchData): string[] {
+  const { topology, git } = data;
+  const allFiles = new Set<string>();
+
+  git.committed.forEach(nd => nd.files.forEach(f => allFiles.add(f.file)));
+  git.staged.forEach(f => allFiles.add(f.file));
+  git.unstaged.forEach(f => allFiles.add(f.file));
+
+  // Sort by topology order (upstream first based on edges)
+  const nodeOrder = topoSort(topology.nodes.map(n => n.id), topology.edges);
+  const nodeIndex = new Map(nodeOrder.map((id, i) => [id, i]));
+
+  const files = [...allFiles];
+  files.sort((a, b) => {
+    const nodeA = getOwnerNode(a);
+    const nodeB = getOwnerNode(b);
+    const idxA = nodeA ? (nodeIndex.get(nodeA) ?? 999) : 999;
+    const idxB = nodeB ? (nodeIndex.get(nodeB) ?? 999) : 999;
+    if (idxA !== idxB) return idxA - idxB;
+    return a.localeCompare(b);
+  });
+
+  return files;
+}
+
+function topoSort(nodeIds: string[], edges: { from: string; to: string }[]): string[] {
+  const adj = new Map<string, string[]>();
+  const inDeg = new Map<string, number>();
+
+  for (const id of nodeIds) {
+    adj.set(id, []);
+    inDeg.set(id, 0);
+  }
+
+  for (const e of edges) {
+    if (adj.has(e.from) && inDeg.has(e.to)) {
+      adj.get(e.from)!.push(e.to);
+      inDeg.set(e.to, (inDeg.get(e.to) ?? 0) + 1);
+    }
+  }
+
+  const queue = nodeIds.filter(id => (inDeg.get(id) ?? 0) === 0);
+  const result: string[] = [];
+
+  while (queue.length > 0) {
+    const node = queue.shift()!;
+    result.push(node);
+    for (const next of adj.get(node) ?? []) {
+      const deg = (inDeg.get(next) ?? 1) - 1;
+      inDeg.set(next, deg);
+      if (deg === 0) queue.push(next);
+    }
+  }
+
+  // Add any remaining (cycles)
+  for (const id of nodeIds) {
+    if (!result.includes(id)) result.push(id);
+  }
+
+  return result;
 }
 
 export function getOwnerNode(filePath: string): string | null {
@@ -111,6 +117,41 @@ export function getOwnerNode(filePath: string): string | null {
     if (node.files.some(p => fileMatchesPattern(filePath, p))) return node.id;
   }
   return null;
+}
+
+export function getNodeStatus(id: string): "changed" | "unchanged" {
+  const hasCommitted = DATA.git.committed.some(nd => nd.nodeId === id);
+  if (hasCommitted) return "changed";
+
+  const node = DATA.topology.nodes.find(n => n.id === id);
+  if (!node) return "unchanged";
+
+  const hasStaged = DATA.git.staged.some(f => node.files.some(p => fileMatchesPattern(f.file, p)));
+  if (hasStaged) return "changed";
+
+  const hasUnstaged = DATA.git.unstaged.some(f => node.files.some(p => fileMatchesPattern(f.file, p)));
+  if (hasUnstaged) return "changed";
+
+  return "unchanged";
+}
+
+export function getNodeActivity(id: string): { committed: number; staged: number; unstaged: number } {
+  const node = DATA.topology.nodes.find(n => n.id === id);
+  if (!node) return { committed: 0, staged: 0, unstaged: 0 };
+
+  const committed = DATA.git.committed
+    .filter(nd => nd.nodeId === id)
+    .reduce((s, nd) => s + nd.files.length, 0);
+
+  const staged = DATA.git.staged
+    .filter(f => node.files.some(p => fileMatchesPattern(f.file, p)))
+    .length;
+
+  const unstaged = DATA.git.unstaged
+    .filter(f => node.files.some(p => fileMatchesPattern(f.file, p)))
+    .length;
+
+  return { committed, staged, unstaged };
 }
 
 export function fileMatchesPattern(file: string, pattern: string): boolean {

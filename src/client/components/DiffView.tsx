@@ -90,42 +90,43 @@ export function DiffView() {
   const { selectedFile, setSelectedNode } = useStore();
 
   if (!selectedFile) {
-    return <div className="diff-empty">Select a file to view diff</div>;
+    return <div className="diff-panel"><div className="diff-empty">Select a file</div></div>;
   }
 
   let fileHunk = null;
-  for (const nd of DATA.nodeDiffs) {
+  for (const nd of DATA.git.committed) {
     const found = nd.files.find(f => f.file === selectedFile);
     if (found) { fileHunk = found; break; }
   }
+  if (!fileHunk) {
+    fileHunk = DATA.git.staged.find(f => f.file === selectedFile) || null;
+  }
+  if (!fileHunk) {
+    fileHunk = DATA.git.unstaged.find(f => f.file === selectedFile) || null;
+  }
 
   if (!fileHunk) {
-    return <div className="diff-empty">No diff data for {selectedFile}</div>;
+    return <div className="diff-panel"><div className="diff-empty">No diff for {selectedFile}</div></div>;
   }
 
   const owner = getOwnerNode(selectedFile);
-  const isNewFile = fileHunk.status === "A";
-  const isDeleted = fileHunk.status === "D";
 
   return (
-    <>
+    <div className="diff-panel">
       <div className="diff-header">
-        <span className={"diff-header-badge " + fileHunk.status}>
-          {fileHunk.status === "A" ? "new" : fileHunk.status === "D" ? "del" : fileHunk.status === "M" ? "mod" : fileHunk.status}
-        </span>
         <span className="diff-header-path">{selectedFile}</span>
         {owner && (
           <span className="diff-header-node" onClick={() => setSelectedNode(owner)}>{owner}</span>
         )}
       </div>
-      {isNewFile ? (
+      {fileHunk.status === "A" ? (
         <NewFileView hunks={fileHunk.hunks} />
-      ) : isDeleted ? (
+      ) : fileHunk.status === "D" ? (
         <DeletedFileView hunks={fileHunk.hunks} />
       ) : (
         <SideBySideView hunks={fileHunk.hunks} />
       )}
-    </>
+    </div>
   );
 }
 
