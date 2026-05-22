@@ -68,7 +68,6 @@ function DirGroup({ dir, files }: { dir: string; files: FileHunk[] }) {
               >
                 <span class={"tree-file-status " + f.status}>{f.status}</span>
                 <span class="tree-file-name">{name}</span>
-                {owner && !selectedNode.value && <span class="tree-file-node">{owner}</span>}
               </div>
             );
           })}

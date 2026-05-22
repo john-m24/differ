@@ -1,4 +1,5 @@
 import { useEffect } from "preact/hooks";
+import { BranchSelector } from "./components/BranchSelector.js";
 import { CommitBar } from "./components/CommitBar.js";
 import { FileTree } from "./components/FileTree.js";
 import { DiffView } from "./components/DiffView.js";
@@ -17,7 +18,10 @@ export function App() {
 
   return (
     <>
-      <CommitBar />
+      <div class="top-bar">
+        <BranchSelector />
+        <CommitBar />
+      </div>
       <div class="panels">
         <aside class="panel-left" id="file-tree">
           <FileTree />

@@ -104,8 +104,9 @@ function initGraph(svg: SVGSVGElement) {
     const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
     text.setAttribute("class", "nlabel");
     text.setAttribute("y", "0");
-    text.textContent = n.id;
+    text.textContent = n.id.split("/").pop() || n.id;
     g.appendChild(text);
+    g.setAttribute("title", n.id);
     g.addEventListener("click", () => {
       if (selectedNode.value === n.id) setSelectedNode(null);
       else setSelectedNode(n.id);
@@ -113,24 +114,38 @@ function initGraph(svg: SVGSVGElement) {
     svg.appendChild(g);
   });
 
-  // Zoom and pan
-  let zoom = 1, panX = 0, panY = 0;
-  let isPanning = false, dragMoved = false;
-  let panStartX = 0, panStartY = 0, panStartPanX = 0, panStartPanY = 0;
+  // Zoom and pan — start fitted to the container
+  let vbX = 0, vbY = 0, vbW = width, vbH = height;
 
-  function applyTransform() {
-    const vw = width / zoom;
-    const vh = height / zoom;
-    const vx = (width - vw) / 2 - panX / zoom;
-    const vy = (height - vh) / 2 - panY / zoom;
-    svg.setAttribute("viewBox", `${vx} ${vy} ${vw} ${vh}`);
+  function fitToView() {
+    vbX = -20;
+    vbY = -20;
+    vbW = width + 40;
+    vbH = height + 40;
+    svg.setAttribute("viewBox", `${vbX} ${vbY} ${vbW} ${vbH}`);
+  }
+  fitToView();
+
+  let isPanning = false, dragMoved = false;
+  let panStartX = 0, panStartY = 0, startVbX = 0, startVbY = 0;
+
+  function applyViewBox() {
+    svg.setAttribute("viewBox", `${vbX} ${vbY} ${vbW} ${vbH}`);
   }
 
   svg.addEventListener("wheel", (e) => {
     e.preventDefault();
-    const delta = e.deltaY > 0 ? 0.9 : 1.1;
-    zoom = Math.max(0.2, Math.min(5, zoom * delta));
-    applyTransform();
+    const rect = svg.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) / rect.width;
+    const my = (e.clientY - rect.top) / rect.height;
+    const factor = e.deltaY > 0 ? 1.1 : 0.9;
+    const newW = vbW * factor;
+    const newH = vbH * factor;
+    vbX += (vbW - newW) * mx;
+    vbY += (vbH - newH) * my;
+    vbW = newW;
+    vbH = newH;
+    applyViewBox();
   }, { passive: false });
 
   svg.addEventListener("mousedown", (e) => {
@@ -138,20 +153,21 @@ function initGraph(svg: SVGSVGElement) {
     dragMoved = false;
     panStartX = e.clientX;
     panStartY = e.clientY;
-    panStartPanX = panX;
-    panStartPanY = panY;
+    startVbX = vbX;
+    startVbY = vbY;
     svg.style.cursor = "grabbing";
     e.preventDefault();
   });
 
   document.addEventListener("mousemove", (e) => {
     if (!isPanning) return;
-    const dx = e.clientX - panStartX;
-    const dy = e.clientY - panStartY;
-    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) dragMoved = true;
-    panX = panStartPanX + dx;
-    panY = panStartPanY + dy;
-    applyTransform();
+    const rect = svg.getBoundingClientRect();
+    const dx = (e.clientX - panStartX) / rect.width * vbW;
+    const dy = (e.clientY - panStartY) / rect.height * vbH;
+    if (Math.abs(e.clientX - panStartX) > 3 || Math.abs(e.clientY - panStartY) > 3) dragMoved = true;
+    vbX = startVbX - dx;
+    vbY = startVbY - dy;
+    applyViewBox();
   });
 
   document.addEventListener("mouseup", () => {

@@ -229,15 +229,16 @@ export function startWatchServer(opts: WatchOptions) {
     const topology = loadTopology();
     const delta = loadDelta();
     const branch = c.req.query("branch");
+    const base = c.req.query("base") || opts.base;
     const currentBranch = getCurrentBranch(cwd);
     const isActiveBranch = !branch || branch === currentBranch;
 
     const fileDiffs = isActiveBranch
-      ? captureDiff(opts.base, cwd, { includeWorktree: true })
-      : captureDiff(opts.base, cwd, { ref: branch });
+      ? captureDiff(base, cwd, { includeWorktree: true })
+      : captureDiff(base, cwd, { ref: branch });
 
     const nodeDiffs = fileDiffs.length > 0 ? mapDiffsToNodes(fileDiffs, topology) : [];
-    const commits = captureCommits(opts.base, cwd);
+    const commits = captureCommits(base, cwd);
     const html = renderServeView(topology, delta, nodeDiffs, commits);
     return c.html(html);
   });
