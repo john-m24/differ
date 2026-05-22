@@ -405,4 +405,60 @@ body {
 
 /* Project view — layered architecture graph */
 .project-view .react-flow { width: 100%; height: 100%; }
+
+/* Activity view — expand badge */
+.expand-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background: #374151;
+  color: #ffffff;
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 4px;
+  border-radius: 8px;
+  border: 1.5px solid #ffffff;
+  cursor: pointer;
+  line-height: 1.2;
+  min-width: 18px;
+  text-align: center;
+  transition: background 0.15s, transform 0.15s;
+}
+.expand-badge:hover {
+  background: #1f2937;
+  transform: scale(1.1);
+}
+
+/* Activity view — node entrance animation */
+.node-entering {
+  animation: nodeEnter 0.3s ease-out;
+}
+@keyframes nodeEnter {
+  from { opacity: 0; transform: scale(0.8); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* Activity view — reset button */
+.reset-activity-btn {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  transition: all 0.15s;
+  z-index: 10;
+}
+.reset-activity-btn:hover {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--text-tertiary);
+}
 `;
