@@ -193,6 +193,15 @@ function renderWatchHTML(state: unknown): string {
     } catch {}
   }
 
+  let diffViewCSS = "";
+  try {
+    diffViewCSS = readFileSync(join(__dirname, "..", "node_modules", "react-diff-view", "src", "styles", "index.css"), "utf-8");
+  } catch {
+    try {
+      diffViewCSS = readFileSync(join(process.cwd(), "node_modules", "react-diff-view", "src", "styles", "index.css"), "utf-8");
+    } catch {}
+  }
+
   const data = JSON.stringify(state).replace(/<\//g, "<\\/").replace(/<!--/g, "<\\!--");
 
   return `<!DOCTYPE html>
@@ -203,6 +212,7 @@ function renderWatchHTML(state: unknown): string {
 <title>Differ Watch</title>
 <style>
 ${reactFlowCSS}
+${diffViewCSS}
 ${CSS}
 </style>
 </head>

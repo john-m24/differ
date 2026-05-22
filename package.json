@@ -20,8 +20,10 @@
     "@xyflow/react": "^12.10.2",
     "better-sqlite3": "^12.10.0",
     "commander": "^14.0.3",
+    "gitdiff-parser": "^0.3.1",
     "hono": "^4.12.18",
     "react": "^19.2.6",
+    "react-diff-view": "^3.3.3",
     "react-dom": "^19.2.6",
     "zustand": "^5.0.13"
   },

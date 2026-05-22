@@ -210,49 +210,35 @@ body {
   font-size: 12px;
 }
 
-.diff-table-wrap { flex: 1; overflow: auto; }
-.diff-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-family: 'SF Mono', 'JetBrains Mono', monospace;
-  font-size: 11px;
-  line-height: 1.7;
-  table-layout: fixed;
+.diff-header-actions {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
 }
-.diff-table td {
-  padding: 0 8px;
-  white-space: pre;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  vertical-align: top;
-}
-.diff-table .ln {
-  width: 36px;
-  min-width: 36px;
-  text-align: right;
-  color: var(--text-tertiary);
-  padding-right: 8px;
-  user-select: none;
-  border-right: 1px solid var(--border);
-  font-size: 10px;
-}
-.diff-table .code { width: 50%; }
-.diff-table .code-left { border-right: 1px solid var(--border); }
-.diff-table tr.hunk-header td {
-  background: var(--surface);
-  color: var(--text-tertiary);
+.diff-view-toggle {
   font-size: 10px;
   padding: 2px 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 3px;
 }
-.diff-table tr.del td.code-left { background: var(--diff-del-bg); color: var(--diff-del-text); }
-.diff-table tr.add td.code-right { background: var(--diff-add-bg); color: var(--diff-add-text); }
-.diff-table tr.change td.code-left { background: var(--diff-del-bg); color: var(--diff-del-text); }
-.diff-table tr.change td.code-right { background: var(--diff-add-bg); color: var(--diff-add-text); }
-.diff-table tr.ctx td { color: var(--text-secondary); }
+.diff-view-toggle.active {
+  background: var(--accent-light);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.diff-view-toggle:hover:not(.active) { background: var(--surface); }
 
-.diff-unified td.code { width: auto; }
-.diff-unified tr.add td.code { background: var(--diff-add-bg); color: var(--diff-add-text); }
-.diff-unified tr.del td.code { background: var(--diff-del-bg); color: var(--diff-del-text); }
+.diff-table-wrap { flex: 1; overflow: auto; }
+.diff-table-wrap .diff {
+  font-family: 'SF Mono', 'JetBrains Mono', monospace;
+  font-size: 11px;
+  line-height: 1.6;
+}
+.diff-table-wrap .diff-gutter { font-size: 10px; color: var(--text-tertiary); }
+.diff-table-wrap .diff-gutter-col { width: 5ch; }
 
 /* Status bar semantic counts */
 .status-separator { color: var(--text-tertiary); }
