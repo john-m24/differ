@@ -42,7 +42,7 @@ const NODE_WIDTH = 130;
 function LayerNode({ data }: { data: { label: string; kind: ReactNodeKind; status: string; route?: string; dimmed: boolean } }) {
   const layer = LAYER_COLORS[data.kind];
   const hasStatus = data.status !== "unchanged";
-  const statusColor = data.status === "changed" ? "#2563eb" : "#d97706";
+  const statusColor = data.status === "changed" ? "#d97706" : "#7c3aed";
 
   return (
     <div
@@ -50,7 +50,7 @@ function LayerNode({ data }: { data: { label: string; kind: ReactNodeKind; statu
         padding: "6px 12px",
         borderRadius: data.kind === "store" ? 10 : data.kind === "page" ? 7 : 5,
         border: `1.5px solid ${hasStatus ? statusColor : layer.border}`,
-        background: hasStatus ? (data.status === "changed" ? "#eff6ff" : "#fffbeb") : layer.bg,
+        background: hasStatus ? (data.status === "changed" ? "#fef3c7" : "#ede9fe") : layer.bg,
         fontSize: 11,
         fontFamily: "'SF Mono', 'JetBrains Mono', monospace",
         fontWeight: 500,
