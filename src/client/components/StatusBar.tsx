@@ -15,7 +15,8 @@ export function StatusBar() {
   return (
     <div className="status-bar">
       <div className="view-switcher">
-        <ViewTab mode="graph" label="Changes" current={viewMode} onSwitch={setViewMode} />
+        <ViewTab mode="activity" label="Activity" current={viewMode} onSwitch={setViewMode} />
+        <ViewTab mode="topology" label="Topology" current={viewMode} onSwitch={setViewMode} />
         <ViewTab mode="project" label="Project" current={viewMode} onSwitch={setViewMode} />
       </div>
       <span className="status-branch">{git.branch}</span>
@@ -31,7 +32,7 @@ export function StatusBar() {
         {routes > 0 && (
           <span className="status-count status-routes">{routes} route{routes !== 1 ? "s" : ""} affected</span>
         )}
-        {viewMode === "project" && (
+        {(viewMode === "topology" || viewMode === "project") && (
           <span className="status-count">{topology.nodes.length} total nodes</span>
         )}
       </div>

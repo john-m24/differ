@@ -1,5 +1,6 @@
 import React from "react";
 import { useStore } from "./state.js";
+import { ActivityView } from "./components/ActivityView.js";
 import { GraphView } from "./components/GraphView.js";
 import { ProjectView } from "./components/ProjectView.js";
 import { Drawer } from "./components/Drawer.js";
@@ -12,9 +13,11 @@ export function App() {
     <>
       <StatusBar />
       <div className="graph-main">
-        {viewMode === "graph" ? <GraphView /> : <ProjectView />}
+        {viewMode === "activity" && <ActivityView />}
+        {viewMode === "topology" && <GraphView />}
+        {viewMode === "project" && <ProjectView />}
       </div>
-      {viewMode === "graph" && <Drawer />}
+      {(viewMode === "activity" || viewMode === "topology") && <Drawer />}
     </>
   );
 }
