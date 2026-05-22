@@ -18,9 +18,19 @@ export interface LayoutEdge {
   points: { x: number; y: number }[];
 }
 
+export interface ClusterLayout {
+  id: string;
+  kind: ReactNodeKind;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface GraphLayout {
   nodes: LayoutNode[];
   edges: LayoutEdge[];
+  clusters?: ClusterLayout[];
   width: number;
   height: number;
 }
@@ -37,7 +47,14 @@ export function computeLayout(
   topology: ReactTopology,
   blastRadius?: BlastRadius
 ): GraphLayout {
-  const g = new Graph();
+  // Group nodes by kind to determine which clusters to create
+  const kindGroups = new Map<ReactNodeKind, ReactNode[]>();
+  for (const node of topology.nodes) {
+    if (!kindGroups.has(node.kind)) kindGroups.set(node.kind, []);
+    kindGroups.get(node.kind)!.push(node);
+  }
+
+  const g = new Graph({ compound: true });
   g.setGraph({
     rankdir: "TB",
     nodesep: 30,
@@ -47,6 +64,19 @@ export function computeLayout(
   });
   g.setDefaultEdgeLabel(() => ({}));
 
+  // Create cluster parent nodes for each kind present
+  for (const [kind] of kindGroups) {
+    g.setNode(`__cluster_${kind}`, {
+      label: kind,
+      clusterLabelPos: "top",
+      paddingTop: 24,
+      paddingBottom: 12,
+      paddingLeft: 16,
+      paddingRight: 16,
+    });
+  }
+
+  // Add real nodes and assign to cluster parents
   for (const node of topology.nodes) {
     const size = NODE_SIZES[node.kind];
     const labelWidth = Math.max(size.width, node.name.length * 8 + 24);
@@ -55,8 +85,10 @@ export function computeLayout(
       height: size.height,
       label: node.name,
     });
+    g.setParent(node.id, `__cluster_${node.kind}`);
   }
 
+  // Add edges
   for (const edge of topology.edges) {
     if (g.hasNode(edge.from) && g.hasNode(edge.to)) {
       g.setEdge(edge.from, edge.to);
@@ -65,6 +97,7 @@ export function computeLayout(
 
   dagre.layout(g);
 
+  // Extract node positions
   const layoutNodes: LayoutNode[] = topology.nodes.map(node => {
     const n = g.node(node.id);
     return {
@@ -76,6 +109,24 @@ export function computeLayout(
     };
   });
 
+  // Extract cluster boundaries
+  const clusters: ClusterLayout[] = [];
+  for (const [kind] of kindGroups) {
+    const clusterId = `__cluster_${kind}`;
+    const clusterNode = g.node(clusterId);
+    if (clusterNode && clusterNode.width && clusterNode.height) {
+      clusters.push({
+        id: clusterId,
+        kind,
+        x: clusterNode.x,
+        y: clusterNode.y,
+        width: clusterNode.width,
+        height: clusterNode.height,
+      });
+    }
+  }
+
+  // Extract edges
   const layoutEdges: LayoutEdge[] = [];
   for (const edge of topology.edges) {
     if (!g.hasNode(edge.from) || !g.hasNode(edge.to)) continue;
@@ -93,6 +144,7 @@ export function computeLayout(
   return {
     nodes: layoutNodes,
     edges: layoutEdges,
+    clusters,
     width: (graphInfo.width || 800) + 80,
     height: (graphInfo.height || 600) + 80,
   };

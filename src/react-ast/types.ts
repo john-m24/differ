@@ -18,7 +18,7 @@ export interface PropSignature {
   optional: boolean;
 }
 
-export type ReactEdgeKind = "renders" | "uses-hook" | "subscribes" | "provides";
+export type ReactEdgeKind = "renders" | "uses-hook" | "subscribes" | "provides" | "consumes-context" | "nests-route";
 
 export interface ReactEdge {
   from: string;
@@ -38,5 +38,6 @@ export interface FileParseResult {
   jsxReferences: { componentId: string; referencedName: string }[];
   hookCalls: { componentId: string; hookName: string; subscribedKeys?: string[] }[];
   contextProviders: { componentId: string; contextName: string }[];
+  contextConsumers: { componentId: string; contextName: string }[];
   imports: { localName: string; source: string; importedName: string }[];
 }

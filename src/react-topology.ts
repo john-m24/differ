@@ -103,6 +103,17 @@ export function computeReactTopology(cwd: string): ReactTopology {
         allEdges.push({ from: prov.componentId, to: targetId, kind: "provides" });
       }
     }
+
+    // Resolve context consumers → consumes-context edges
+    for (const cons of result.contextConsumers) {
+      const targetId = importResolution.get(`${result.filePath}:${cons.contextName}`);
+      if (targetId) {
+        const targetNode = allNodes.find(n => n.id === targetId);
+        if (targetNode?.kind === "context") {
+          allEdges.push({ from: cons.componentId, to: targetId, kind: "consumes-context" });
+        }
+      }
+    }
   }
 
   // Deduplicate edges
@@ -123,6 +134,28 @@ export function computeReactTopology(cwd: string): ReactTopology {
     if (node) {
       node.kind = "page";
       node.route = route.path;
+    }
+  }
+
+  // Compute route nesting edges
+  const pageNodes = allNodes.filter(n => n.kind === "page" && n.route);
+  const sortedPages = [...pageNodes].sort((a, b) => a.route!.length - b.route!.length);
+  for (const child of sortedPages) {
+    let closestParent: ReactNode | null = null;
+    for (const candidate of sortedPages) {
+      if (candidate === child) continue;
+      if (candidate.route!.length >= child.route!.length) continue;
+      const isPrefix = candidate.route === "/"
+        ? child.route !== "/"
+        : child.route!.startsWith(candidate.route! + "/");
+      if (isPrefix) {
+        if (!closestParent || candidate.route!.length > closestParent.route!.length) {
+          closestParent = candidate;
+        }
+      }
+    }
+    if (closestParent) {
+      dedupedEdges.push({ from: closestParent.id, to: child.id, kind: "nests-route" });
     }
   }
 

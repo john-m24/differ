@@ -18,7 +18,7 @@ export interface PropSignature {
   optional: boolean;
 }
 
-export type ReactEdgeKind = "renders" | "uses-hook" | "subscribes" | "provides";
+export type ReactEdgeKind = "renders" | "uses-hook" | "subscribes" | "provides" | "consumes-context" | "nests-route";
 
 export interface ReactEdge {
   from: string;
@@ -47,9 +47,19 @@ export interface LayoutEdge {
   points: { x: number; y: number }[];
 }
 
+export interface ClusterLayout {
+  id: string;
+  kind: ReactNodeKind;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface GraphLayout {
   nodes: LayoutNode[];
   edges: LayoutEdge[];
+  clusters?: ClusterLayout[];
   width: number;
   height: number;
 }

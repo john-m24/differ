@@ -100,6 +100,8 @@ const EDGE_STYLES: Record<string, { stroke: string; strokeDasharray?: string }> 
   "uses-hook": { stroke: "#6366f1", strokeDasharray: "4 3" },
   subscribes: { stroke: "#7c3aed", strokeDasharray: "2 2" },
   provides: { stroke: "#059669", strokeDasharray: "6 3" },
+  "consumes-context": { stroke: "#ca8a04", strokeDasharray: "3 4" },
+  "nests-route": { stroke: "#059669", strokeDasharray: "8 4" },
 };
 
 export function ProjectView() {

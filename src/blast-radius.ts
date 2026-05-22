@@ -30,6 +30,7 @@ export function computeBlastRadius(
   const reverseRenders = new Map<string, string[]>(); // child → parents that render it
   const reverseUsesHook = new Map<string, string[]>(); // hook → callers
   const forwardSubscribes = new Map<string, string[]>(); // store → subscribers
+  const forwardConsumesContext = new Map<string, string[]>(); // context → consumers
 
   for (const edge of topology.edges) {
     if (edge.kind === "renders") {
@@ -43,6 +44,10 @@ export function computeBlastRadius(
     if (edge.kind === "subscribes") {
       if (!forwardSubscribes.has(edge.to)) forwardSubscribes.set(edge.to, []);
       forwardSubscribes.get(edge.to)!.push(edge.from);
+    }
+    if (edge.kind === "consumes-context") {
+      if (!forwardConsumesContext.has(edge.to)) forwardConsumesContext.set(edge.to, []);
+      forwardConsumesContext.get(edge.to)!.push(edge.from);
     }
   }
 
@@ -76,6 +81,14 @@ export function computeBlastRadius(
       const subscribers = forwardSubscribes.get(nodeId) ?? [];
       for (const s of subscribers) {
         if (!changedSet.has(s)) affected.add(s);
+      }
+    }
+
+    // If a context changed, its consumers are affected
+    if (node.kind === "context") {
+      const consumers = forwardConsumesContext.get(nodeId) ?? [];
+      for (const c of consumers) {
+        if (!changedSet.has(c)) affected.add(c);
       }
     }
   }

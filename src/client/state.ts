@@ -125,6 +125,10 @@ export function getNodeEdges(id: string) {
   const subscribesTo = DATA.topology.edges.filter(e => e.from === id && e.kind === "subscribes");
   const subscribers = DATA.topology.edges.filter(e => e.to === id && e.kind === "subscribes");
   const provides = DATA.topology.edges.filter(e => e.from === id && e.kind === "provides");
+  const consumesContext = DATA.topology.edges.filter(e => e.from === id && e.kind === "consumes-context");
+  const consumedBy = DATA.topology.edges.filter(e => e.to === id && e.kind === "consumes-context");
+  const nestsRoute = DATA.topology.edges.filter(e => e.from === id && e.kind === "nests-route");
+  const nestedIn = DATA.topology.edges.filter(e => e.to === id && e.kind === "nests-route");
 
-  return { renders, renderedBy, usesHooks, calledBy, subscribesTo, subscribers, provides };
+  return { renders, renderedBy, usesHooks, calledBy, subscribesTo, subscribers, provides, consumesContext, consumedBy, nestsRoute, nestedIn };
 }
