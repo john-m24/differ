@@ -26,7 +26,7 @@ const STATUS_COLORS = {
   unchanged: { border: "#e5e7eb", bg: "#ffffff" },
 };
 
-function SemanticNode({ data }: { data: { label: string; kind: ReactNodeKind; status: string; route?: string } }) {
+function SemanticNode({ data }: { data: { label: string; kind: ReactNodeKind; status: string; route?: string; dimmed: boolean } }) {
   const style = KIND_STYLES[data.kind];
   const colors = STATUS_COLORS[data.status as keyof typeof STATUS_COLORS] || STATUS_COLORS.unchanged;
 
@@ -45,6 +45,8 @@ function SemanticNode({ data }: { data: { label: string; kind: ReactNodeKind; st
         display: "flex",
         alignItems: "center",
         gap: 5,
+        opacity: data.dimmed ? 0.25 : 1,
+        transition: "opacity 0.2s",
       }}
     >
       <Handle type="target" position={Position.Top} style={{ visibility: "hidden" }} />
@@ -58,14 +60,24 @@ function SemanticNode({ data }: { data: { label: string; kind: ReactNodeKind; st
 const nodeTypes: NodeTypes = { semantic: SemanticNode };
 
 const EDGE_STYLES: Record<string, { stroke: string; strokeDasharray?: string; strokeWidth: number }> = {
-  renders: { stroke: "#d1d5db", strokeWidth: 1 },
-  "uses-hook": { stroke: "#93c5fd", strokeDasharray: "4 3", strokeWidth: 1 },
-  subscribes: { stroke: "#c4b5fd", strokeDasharray: "2 2", strokeWidth: 1.5 },
-  provides: { stroke: "#86efac", strokeDasharray: "6 3", strokeWidth: 1.5 },
+  renders: { stroke: "#6b7280", strokeWidth: 1.5 },
+  "uses-hook": { stroke: "#6366f1", strokeDasharray: "4 3", strokeWidth: 1.5 },
+  subscribes: { stroke: "#7c3aed", strokeDasharray: "2 2", strokeWidth: 1.5 },
+  provides: { stroke: "#059669", strokeDasharray: "6 3", strokeWidth: 1.5 },
 };
 
 export function GraphView() {
   const { selectedNode, setSelectedNode } = useStore();
+
+  const neighborIds = useMemo(() => {
+    if (!selectedNode) return new Set<string>();
+    const ids = new Set<string>();
+    for (const edge of DATA.topology.edges) {
+      if (edge.from === selectedNode) ids.add(edge.to);
+      if (edge.to === selectedNode) ids.add(edge.from);
+    }
+    return ids;
+  }, [selectedNode]);
 
   const { nodes, edges } = useMemo(() => {
     const layout = DATA.layout;
@@ -74,6 +86,9 @@ export function GraphView() {
     const rfNodes: Node[] = layout.nodes.map(n => {
       const topoNode = topoNodes.find(tn => tn.id === n.id);
       const status = getNodeStatus(n.id);
+      const isNeighbor = neighborIds.has(n.id);
+      const dimmed = selectedNode !== null && n.id !== selectedNode && !isNeighbor;
+
       return {
         id: n.id,
         type: "semantic",
@@ -83,32 +98,42 @@ export function GraphView() {
           kind: topoNode?.kind || "component",
           status,
           route: topoNode?.route,
+          dimmed,
         },
         selected: n.id === selectedNode,
       };
     });
 
-    const rfEdges: Edge[] = layout.edges.map(e => {
-      const style = EDGE_STYLES[e.kind] || EDGE_STYLES.renders;
-      return {
-        id: `${e.source}->${e.target}:${e.kind}`,
-        source: e.source,
-        target: e.target,
-        style: {
-          stroke: style.stroke,
-          strokeWidth: style.strokeWidth,
-          strokeDasharray: style.strokeDasharray,
-        },
-        animated: false,
-      };
-    });
+    // Only show edges connected to the selected node
+    const rfEdges: Edge[] = [];
+    if (selectedNode) {
+      for (const e of DATA.topology.edges) {
+        if (e.from !== selectedNode && e.to !== selectedNode) continue;
+        const style = EDGE_STYLES[e.kind] || EDGE_STYLES.renders;
+        rfEdges.push({
+          id: `${e.from}->${e.to}:${e.kind}`,
+          source: e.from,
+          target: e.to,
+          style: {
+            stroke: style.stroke,
+            strokeWidth: style.strokeWidth,
+            strokeDasharray: style.strokeDasharray,
+          },
+          animated: false,
+        });
+      }
+    }
 
     return { nodes: rfNodes, edges: rfEdges };
-  }, [selectedNode]);
+  }, [selectedNode, neighborIds]);
 
   const onNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
     setSelectedNode(selectedNode === node.id ? null : node.id);
   }, [selectedNode, setSelectedNode]);
+
+  const onPaneClick = useCallback(() => {
+    setSelectedNode(null);
+  }, [setSelectedNode]);
 
   return (
     <ReactFlow
@@ -116,6 +141,7 @@ export function GraphView() {
       edges={edges}
       nodeTypes={nodeTypes}
       onNodeClick={onNodeClick}
+      onPaneClick={onPaneClick}
       fitView
       fitViewOptions={{ padding: 0.2 }}
       minZoom={0.1}

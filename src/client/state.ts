@@ -3,22 +3,29 @@ import type { WatchData, ReactNode } from "./types.js";
 
 export let DATA: WatchData;
 
+export type ViewMode = "graph" | "project";
+
 interface DifferState {
+  viewMode: ViewMode;
   selectedNode: string | null;
   selectedFile: string | null;
   drawerOpen: boolean;
   readingOrder: string[];
 
+  setViewMode: (mode: ViewMode) => void;
   setSelectedNode: (id: string | null) => void;
   setSelectedFile: (path: string | null) => void;
   setDrawerOpen: (open: boolean) => void;
 }
 
 export const useStore = create<DifferState>((set) => ({
+  viewMode: "graph" as ViewMode,
   selectedNode: null,
   selectedFile: null,
   drawerOpen: false,
   readingOrder: [],
+
+  setViewMode: (mode) => set({ viewMode: mode }),
 
   setSelectedNode: (id) => {
     if (id) {
