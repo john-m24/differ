@@ -26,6 +26,14 @@ const STATUS_COLORS = {
   unchanged: { border: "#e5e7eb", bg: "#ffffff" },
 };
 
+const CLUSTER_COLORS: Record<ReactNodeKind, { bg: string; border: string; label: string }> = {
+  page: { bg: "#ecfdf510", border: "#05966920", label: "Routes" },
+  component: { bg: "#eff6ff10", border: "#2563eb20", label: "Components" },
+  hook: { bg: "#eef2ff10", border: "#6366f120", label: "Hooks" },
+  context: { bg: "#fefce810", border: "#ca8a0420", label: "Contexts" },
+  store: { bg: "#faf5ff10", border: "#7c3aed20", label: "Stores" },
+};
+
 function SemanticNode({ data }: { data: { label: string; kind: ReactNodeKind; status: string; route?: string; dimmed: boolean } }) {
   const style = KIND_STYLES[data.kind];
   const colors = STATUS_COLORS[data.status as keyof typeof STATUS_COLORS] || STATUS_COLORS.unchanged;
@@ -57,13 +65,47 @@ function SemanticNode({ data }: { data: { label: string; kind: ReactNodeKind; st
   );
 }
 
-const nodeTypes: NodeTypes = { semantic: SemanticNode };
+function ClusterNode({ data }: { data: { label: string; kind: ReactNodeKind; width: number; height: number } }) {
+  const colors = CLUSTER_COLORS[data.kind];
+  return (
+    <div
+      style={{
+        width: data.width,
+        height: data.height,
+        background: colors.bg,
+        border: `1px solid ${colors.border}`,
+        borderRadius: 8,
+        position: "relative",
+      }}
+    >
+      <span
+        style={{
+          position: "absolute",
+          top: 6,
+          left: 10,
+          fontSize: 9,
+          fontWeight: 600,
+          textTransform: "uppercase",
+          letterSpacing: "0.4px",
+          color: colors.border.replace("20", "80"),
+          opacity: 0.8,
+        }}
+      >
+        {colors.label}
+      </span>
+    </div>
+  );
+}
+
+const nodeTypes: NodeTypes = { semantic: SemanticNode, cluster: ClusterNode };
 
 const EDGE_STYLES: Record<string, { stroke: string; strokeDasharray?: string; strokeWidth: number }> = {
   renders: { stroke: "#6b7280", strokeWidth: 1.5 },
   "uses-hook": { stroke: "#6366f1", strokeDasharray: "4 3", strokeWidth: 1.5 },
   subscribes: { stroke: "#7c3aed", strokeDasharray: "2 2", strokeWidth: 1.5 },
   provides: { stroke: "#059669", strokeDasharray: "6 3", strokeWidth: 1.5 },
+  "consumes-context": { stroke: "#ca8a04", strokeDasharray: "3 4", strokeWidth: 1.5 },
+  "nests-route": { stroke: "#059669", strokeDasharray: "8 4", strokeWidth: 1 },
 };
 
 export function GraphView() {
@@ -82,14 +124,36 @@ export function GraphView() {
   const { nodes, edges } = useMemo(() => {
     const layout = DATA.layout;
     const topoNodes = DATA.topology.nodes;
+    const rfNodes: Node[] = [];
 
-    const rfNodes: Node[] = layout.nodes.map(n => {
+    // Add cluster background nodes
+    if (layout.clusters) {
+      for (const cluster of layout.clusters) {
+        rfNodes.push({
+          id: cluster.id,
+          type: "cluster",
+          position: { x: cluster.x - cluster.width / 2, y: cluster.y - cluster.height / 2 },
+          data: {
+            label: cluster.kind,
+            kind: cluster.kind,
+            width: cluster.width,
+            height: cluster.height,
+          },
+          selectable: false,
+          draggable: false,
+          zIndex: -1,
+        });
+      }
+    }
+
+    // Add regular nodes
+    for (const n of layout.nodes) {
       const topoNode = topoNodes.find(tn => tn.id === n.id);
       const status = getNodeStatus(n.id);
       const isNeighbor = neighborIds.has(n.id);
       const dimmed = selectedNode !== null && n.id !== selectedNode && !isNeighbor;
 
-      return {
+      rfNodes.push({
         id: n.id,
         type: "semantic",
         position: { x: n.x - n.width / 2, y: n.y - n.height / 2 },
@@ -101,8 +165,8 @@ export function GraphView() {
           dimmed,
         },
         selected: n.id === selectedNode,
-      };
-    });
+      });
+    }
 
     // Only show edges connected to the selected node
     const rfEdges: Edge[] = [];
@@ -128,6 +192,7 @@ export function GraphView() {
   }, [selectedNode, neighborIds]);
 
   const onNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
+    if (node.id.startsWith("__cluster_")) return;
     setSelectedNode(selectedNode === node.id ? null : node.id);
   }, [selectedNode, setSelectedNode]);
 

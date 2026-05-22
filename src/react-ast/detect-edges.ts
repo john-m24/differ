@@ -5,10 +5,11 @@ export function detectEdges(
   sourceFile: ts.SourceFile,
   filePath: string,
   nodeIds: Set<string>
-): Pick<FileParseResult, "jsxReferences" | "hookCalls" | "contextProviders" | "imports"> {
+): Pick<FileParseResult, "jsxReferences" | "hookCalls" | "contextProviders" | "contextConsumers" | "imports"> {
   const jsxReferences: FileParseResult["jsxReferences"] = [];
   const hookCalls: FileParseResult["hookCalls"] = [];
   const contextProviders: FileParseResult["contextProviders"] = [];
+  const contextConsumers: FileParseResult["contextConsumers"] = [];
   const imports: FileParseResult["imports"] = [];
 
   // Collect imports first
@@ -71,6 +72,11 @@ export function detectEdges(
 
       // Hook calls: useXxx(...)
       if (ts.isCallExpression(node)) {
+        // Detect useContext(X) / React.useContext(X)
+        if (isUseContextCall(node) && node.arguments.length > 0 && ts.isIdentifier(node.arguments[0])) {
+          contextConsumers.push({ componentId, contextName: node.arguments[0].text });
+        }
+
         const hookInfo = detectHookCall(node);
         if (hookInfo) {
           hookCalls.push({
@@ -87,7 +93,7 @@ export function detectEdges(
     ts.forEachChild(body, visit);
   }
 
-  return { jsxReferences, hookCalls, contextProviders, imports };
+  return { jsxReferences, hookCalls, contextProviders, contextConsumers, imports };
 }
 
 function getJsxTagName(tagName: ts.JsxTagNameExpression): string | null {
@@ -135,4 +141,17 @@ function collectPropertyAccesses(node: ts.Node, keys: string[]) {
     return;
   }
   ts.forEachChild(node, child => collectPropertyAccesses(child, keys));
+}
+
+function isUseContextCall(node: ts.CallExpression): boolean {
+  if (ts.isIdentifier(node.expression) && node.expression.text === "useContext") {
+    return true;
+  }
+  if (ts.isPropertyAccessExpression(node.expression) &&
+      node.expression.name.text === "useContext" &&
+      ts.isIdentifier(node.expression.expression) &&
+      node.expression.expression.text === "React") {
+    return true;
+  }
+  return false;
 }
