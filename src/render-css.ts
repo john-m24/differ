@@ -61,14 +61,6 @@ body {
   color: var(--text-secondary);
 }
 .status-count { display: flex; align-items: center; gap: 4px; }
-.status-count-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-}
-.status-count-dot.committed { background: var(--accent); }
-.status-count-dot.staged { background: #22c55e; }
-.status-count-dot.unstaged { background: var(--text-tertiary); }
 
 /* Graph area — primary view */
 .graph-main {
