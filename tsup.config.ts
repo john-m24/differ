@@ -23,6 +23,7 @@ export default defineConfig([
     outDir: "dist",
     clean: false,
     dts: false,
+    external: ["typescript"],
     banner: { js: "#!/usr/bin/env node" },
   },
 ]);

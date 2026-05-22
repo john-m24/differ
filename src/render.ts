@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Topology, SystemDelta, CommitInfo } from "./types.js";
+import type { Topology } from "./types.js";
 import type { NodeDiff } from "./diff.js";
 import { computeLayout } from "./layout.js";
 import { CSS } from "./render-css.js";
@@ -11,7 +11,7 @@ function getClientScript(): string {
   try {
     return readFileSync(join(__dirname, "index.global.js"), "utf-8");
   } catch {
-    return "console.error('Client bundle not found. Run: npx tsup');";
+    return "console.error('Client bundle not found. Run: npm run build');";
   }
 }
 
@@ -30,17 +30,20 @@ function getReactFlowCSS(): string {
 
 export function renderReview(
   topology: Topology,
-  delta: SystemDelta,
-  nodeDiffs?: NodeDiff[],
-  commits?: CommitInfo[]
+  nodeDiffs?: NodeDiff[]
 ): string {
-  const layout = computeLayout(topology, delta, nodeDiffs);
+  const layout = computeLayout(topology, nodeDiffs);
   const data = JSON.stringify({
     topology,
-    delta,
-    nodeDiffs: nodeDiffs || [],
     layout,
-    commits: commits || [],
+    git: {
+      branch: "unknown",
+      base: "main",
+      committed: nodeDiffs || [],
+      staged: [],
+      unstaged: [],
+      commits: [],
+    },
   })
     .replace(/<\//g, "<\\/")
     .replace(/<!--/g, "<\\!--");

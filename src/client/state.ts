@@ -1,119 +1,123 @@
 import { create } from "zustand";
-import type { AppData, FileHunk } from "./types.js";
+import type { WatchData, ReactNode } from "./types.js";
 
-export let DATA: AppData;
+export let DATA: WatchData;
 
 interface DifferState {
-  commitRange: [number, number];
   selectedNode: string | null;
   selectedFile: string | null;
-  activeFilters: Set<string>;
-  activeFiles: Set<string>;
-  activeFileHunks: FileHunk[];
-  activeNodeIds: Set<string>;
+  drawerOpen: boolean;
+  readingOrder: string[];
 
-  setCommitRange: (range: [number, number]) => void;
   setSelectedNode: (id: string | null) => void;
   setSelectedFile: (path: string | null) => void;
-  toggleFilter: (status: string) => void;
+  setDrawerOpen: (open: boolean) => void;
 }
 
-function recompute(commitRange: [number, number]) {
-  const { commits, nodeDiffs } = DATA;
-  if (!commits || commits.length === 0) {
-    return {
-      activeFiles: new Set(nodeDiffs.flatMap(nd => nd.files.map(f => f.file))),
-      activeFileHunks: nodeDiffs.flatMap(nd => nd.files),
-      activeNodeIds: new Set(nodeDiffs.map(nd => nd.nodeId)),
-    };
-  }
-
-  const [start, end] = commitRange;
-  const selected = commits.slice(start, end + 1);
-  const files = new Set<string>();
-  selected.forEach(c => c.files.forEach(f => files.add(f.path)));
-
-  const hunks: FileHunk[] = [];
-  nodeDiffs.forEach(nd => {
-    nd.files.forEach(f => { if (files.has(f.file)) hunks.push(f); });
-  });
-
-  const nodeIds = new Set<string>();
-  nodeDiffs.forEach(nd => {
-    if (nd.files.some(f => files.has(f.file))) nodeIds.add(nd.nodeId);
-  });
-
-  return { activeFiles: files, activeFileHunks: hunks, activeNodeIds: nodeIds };
-}
-
-export const useStore = create<DifferState>((set, get) => ({
-  commitRange: [0, 0],
+export const useStore = create<DifferState>((set) => ({
   selectedNode: null,
   selectedFile: null,
-  activeFilters: new Set(["changed", "added", "removed", "blast-radius"]),
-  activeFiles: new Set<string>(),
-  activeFileHunks: [],
-  activeNodeIds: new Set<string>(),
-
-  setCommitRange: (range) => {
-    const derived = recompute(range);
-    const state = get();
-    const selectedFile = state.selectedFile && derived.activeFiles.has(state.selectedFile)
-      ? state.selectedFile : null;
-    set({ commitRange: range, ...derived, selectedFile });
-  },
+  drawerOpen: false,
+  readingOrder: [],
 
   setSelectedNode: (id) => {
     if (id) {
-      const node = DATA.topology.nodes.find(n => n.id === id);
-      if (node) {
-        const state = get();
-        const firstFile = state.activeFileHunks.find(f =>
-          node.files.some(p => fileMatchesPattern(f.file, p))
-        );
-        set({ selectedNode: id, selectedFile: firstFile?.file || null });
-        return;
-      }
+      set({ selectedNode: id, drawerOpen: true, selectedFile: null });
+    } else {
+      set({ selectedNode: null, drawerOpen: false, selectedFile: null });
     }
-    set({ selectedNode: id });
   },
 
-  setSelectedFile: (path) => set({ selectedFile: path }),
+  setSelectedFile: (path) => {
+    set({ selectedFile: path, drawerOpen: true });
+  },
 
-  toggleFilter: (status) => {
-    const current = get().activeFilters;
-    const next = new Set(current);
-    if (next.has(status)) next.delete(status);
-    else next.add(status);
-    set({ activeFilters: next });
+  setDrawerOpen: (open) => {
+    if (!open) set({ drawerOpen: false, selectedNode: null, selectedFile: null });
+    else set({ drawerOpen: open });
   },
 }));
 
-export function initData(data: AppData) {
+export function initData(data: WatchData) {
   DATA = data;
-  const range: [number, number] = [0, Math.max(0, (data.commits || []).length - 1)];
-  const derived = recompute(range);
-  useStore.setState({ commitRange: range, ...derived });
+  const order = computeReadingOrder(data);
+  useStore.setState({ readingOrder: order });
 }
 
-export function getStatus(id: string): string {
-  const { delta, nodeDiffs } = DATA;
-  if (delta.added.includes(id)) return "added";
-  if (delta.removed.includes(id)) return "removed";
-  if (delta.changed.some(c => c.id === id)) return "changed";
-  if (delta.blast_radius.includes(id)) return "blast-radius";
-  if (nodeDiffs.some(nd => nd.nodeId === id)) return "changed";
+export function updateData(data: WatchData) {
+  DATA = data;
+  const order = computeReadingOrder(data);
+  useStore.setState({ readingOrder: order });
+}
+
+function computeReadingOrder(data: WatchData): string[] {
+  const { topology, blastRadius, git } = data;
+  const changedIds = new Set(blastRadius.changed);
+
+  // Get changed nodes, grouped by kind priority
+  const changedNodes = topology.nodes.filter(n => changedIds.has(n.id));
+
+  // Priority: stores(1) > hooks(2) > components leaf-first(3) > pages(4)
+  const kindPriority: Record<string, number> = {
+    store: 1,
+    hook: 2,
+    context: 3,
+    component: 4,
+    page: 5,
+  };
+
+  changedNodes.sort((a, b) => {
+    const pa = kindPriority[a.kind] ?? 99;
+    const pb = kindPriority[b.kind] ?? 99;
+    if (pa !== pb) return pa - pb;
+    return a.name.localeCompare(b.name);
+  });
+
+  // Collect unique file paths from changed nodes
+  const files: string[] = [];
+  const seen = new Set<string>();
+
+  for (const node of changedNodes) {
+    if (!seen.has(node.filePath)) {
+      seen.add(node.filePath);
+      files.push(node.filePath);
+    }
+  }
+
+  // Add affected (but not changed) files at the end
+  const affectedIds = new Set(blastRadius.affected);
+  const affectedNodes = topology.nodes
+    .filter(n => affectedIds.has(n.id))
+    .sort((a, b) => (kindPriority[a.kind] ?? 99) - (kindPriority[b.kind] ?? 99));
+
+  for (const node of affectedNodes) {
+    if (!seen.has(node.filePath)) {
+      seen.add(node.filePath);
+      files.push(node.filePath);
+    }
+  }
+
+  return files;
+}
+
+export function getNodeStatus(id: string): "changed" | "affected" | "unchanged" {
+  if (DATA.blastRadius.changed.includes(id)) return "changed";
+  if (DATA.blastRadius.affected.includes(id)) return "affected";
   return "unchanged";
 }
 
-export function getOwnerNode(filePath: string): string | null {
-  for (const node of DATA.topology.nodes) {
-    if (node.files.some(p => fileMatchesPattern(filePath, p))) return node.id;
-  }
-  return null;
+export function getNodeById(id: string): ReactNode | undefined {
+  return DATA.topology.nodes.find(n => n.id === id);
 }
 
-export function fileMatchesPattern(file: string, pattern: string): boolean {
-  const re = pattern.replace(/\./g, "\\.").replace(/\*\*\//g, "(.+/)?").replace(/\*\*/g, ".*").replace(/\*/g, "[^/]*");
-  return new RegExp("^" + re + "$").test(file);
+export function getNodeEdges(id: string) {
+  const renders = DATA.topology.edges.filter(e => e.from === id && e.kind === "renders");
+  const renderedBy = DATA.topology.edges.filter(e => e.to === id && e.kind === "renders");
+  const usesHooks = DATA.topology.edges.filter(e => e.from === id && e.kind === "uses-hook");
+  const calledBy = DATA.topology.edges.filter(e => e.to === id && e.kind === "uses-hook");
+  const subscribesTo = DATA.topology.edges.filter(e => e.from === id && e.kind === "subscribes");
+  const subscribers = DATA.topology.edges.filter(e => e.to === id && e.kind === "subscribes");
+  const provides = DATA.topology.edges.filter(e => e.from === id && e.kind === "provides");
+
+  return { renders, renderedBy, usesHooks, calledBy, subscribesTo, subscribers, provides };
 }

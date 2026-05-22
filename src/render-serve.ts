@@ -1,21 +1,15 @@
-import type { Topology, SystemDelta, CommitInfo } from "./types.js";
+import type { Topology } from "./types.js";
 import type { NodeDiff } from "./diff.js";
 import { renderReview } from "./render.js";
 
-const EMPTY_DELTA: SystemDelta = {
-  intent: "", intent_satisfied: true, changed: [], added: [], removed: [],
-  moved: [], edges_added: [], edges_removed: [], blast_radius: [],
-  scope_violations: [], decision_trace: [],
-};
-
-export function renderServeView(topology: Topology, delta: SystemDelta | null, nodeDiffs?: NodeDiff[], commits?: CommitInfo[]): string {
-  const base = renderReview(topology, delta || EMPTY_DELTA, nodeDiffs, commits);
+export function renderServeView(topology: Topology, nodeDiffs?: NodeDiff[]): string {
+  const base = renderReview(topology, nodeDiffs);
 
   const injection = `
 <script>
 (function() {
   const evtSource = new EventSource("/api/events");
-  evtSource.onmessage = function() { window.location.reload(); };
+  evtSource.addEventListener("state", function() { window.location.reload(); });
 })();
 </script>`;
 
