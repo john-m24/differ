@@ -85,12 +85,30 @@ body {
   border-top: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  transition: height 0.2s ease;
   flex-shrink: 0;
   overflow: hidden;
 }
 .drawer.closed { height: 0; border-top: none; }
-.drawer.open { height: 320px; }
+.drawer.open { min-height: 120px; }
+
+.drawer-resize-handle {
+  height: 6px;
+  cursor: ns-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  user-select: none;
+}
+.drawer-resize-handle:hover .drawer-resize-grip,
+.drawer-resize-handle:active .drawer-resize-grip { background: var(--text-tertiary); }
+.drawer-resize-grip {
+  width: 32px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--border);
+  transition: background 0.15s;
+}
 
 .drawer-header {
   padding: 8px 20px;
